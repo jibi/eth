@@ -7,10 +7,7 @@ main(int argc, char *argv[]) {
 
 	setup_tcp_app();
 
-	while(1) {
-		pico_stack_tick();
-		usleep(2000);
-	}
+	pico_stack_loop();
 
 	return 0;
 }

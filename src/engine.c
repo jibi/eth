@@ -48,13 +48,33 @@ cb_tcp_eth(uint16_t ev, struct pico_socket *s) {
 	char request[BSIZE];
 	int len = 0;
 	int flag = 0;
+	char *response;
 
 	if (ev & PICO_SOCK_EV_RD) {
 		len = pico_socket_read(s, request, BSIZE);
 		if (len > 0) {
+			int w, t;
 			flag &= ~(PICO_SOCK_EV_RD);
 			request[len] = '\x00';
-			handle_http_request(s, request, len);
+			response = handle_http_request(s, request, len);
+
+			/* XXX:
+			 * I dont think this is the right way (calling pico_stack_tick() here)
+			 * Maybe it's better to enqueue somewhere data to be written,
+			 * (and do a dequeue() and pico_socket_write() at the
+			 * beginning of the main cycle)
+			 *
+			 */
+
+			w = 0;
+			t = strlen(response);
+
+			do {
+				w += pico_socket_write(s, response + w, t - w);
+				pico_stack_tick();
+			} while (w < t);
+
+			free(response);
 		} else {
 			flag |= PICO_SOCK_EV_RD;
 		}
@@ -77,7 +97,6 @@ cb_tcp_eth(uint16_t ev, struct pico_socket *s) {
 	if (ev & PICO_SOCK_EV_FIN) {
 		log_debug1("Socket closed. Exit normally");
 		exit(0);
-		//pico_timer_add(2000, deferred_exit, NULL);
 	}
 
 	if (ev & PICO_SOCK_EV_ERR) {
@@ -86,11 +105,11 @@ cb_tcp_eth(uint16_t ev, struct pico_socket *s) {
 	}
 
 	if (ev & PICO_SOCK_EV_CLOSE) {
-		printf("Socket received close from peer.\n");
+		log_debug1("Socket received close from peer.\n");
 		flag |= PICO_SOCK_EV_CLOSE;
 		if ((flag & PICO_SOCK_EV_RD) && (flag & PICO_SOCK_EV_CLOSE)) {
 			pico_socket_shutdown(s, PICO_SHUT_WR);
-			printf("SOCKET> Called shutdown write, ev = %d\n", ev);
+			log_debug1("SOCKET> Called shutdown write, ev = %d\n", ev);
 		}
 	}
 }

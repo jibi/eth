@@ -7,8 +7,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <pico_socket.h>
-
 #include <eth/http11.h>
 
 static void
@@ -169,7 +167,7 @@ eth_http_response(eth_parser *request) {
 	return response;
 }
 
-void
+char *
 handle_http_request(struct pico_socket *client, char *request, size_t len) {
 	char *response;
 
@@ -182,8 +180,5 @@ handle_http_request(struct pico_socket *client, char *request, size_t len) {
 		response = eth_http_response(parsed_req);
 	}
 
-	/* FIXME: handle partial write */
-	pico_socket_write(client, response, strlen(response));
-
-	free(response);
+	return response;
 }
