@@ -1,13 +1,18 @@
-#include <pico_stack.h>
-#include <eth/engine.h>
+#include <stdio.h>
+
+#include <eth/log.h>
+#include <eth/yoctonet.h>
+#include <eth/yoctonet/eth.h>
+#include <eth/netmap.h>
 
 int
 main(int argc, char *argv[]) {
-	init_pico_device();
+	log_info("Hi, this is ETH!");
 
-	setup_tcp_app();
+	init_netmap("ens4");
+	init_yoctonet();
 
-	pico_stack_loop();
+	netmap_recv_loop(process_eth);
 
 	return 0;
 }

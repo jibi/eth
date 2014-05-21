@@ -8,8 +8,15 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
+#include <eth/log.h>
+#include <eth/yoctonet.h>
+
+#define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
 
+struct nm_desc *netmap;
+
+#if 0
 struct netmap_if *
 open_netmap_if(const char *ifname, int *ret_fd) {
 	int fd, ret;
@@ -47,21 +54,34 @@ open_netmap_if(const char *ifname, int *ret_fd) {
 	*ret_fd = fd;
 	return nifp;
 }
+#endif
 
 void
-receiver(int fd, struct netmap_if *nifp) {
+init_netmap(char *ifname) {
+	char _ifname[IFNAMSIZ + 7];
+
+	sprintf(_ifname, "netmap:%s", ifname);
+	netmap = nm_open(_ifname, NULL, 0, 0);
+
+	if (!netmap) {
+		fatal_tragedy(1, "Cannot open netmap device");
+	}
+}
+
+void
+netmap_recv_loop(void (*process_packet)(char *)) {
 	while (1) {
 		struct pollfd fds;
 		struct netmap_ring *ring;
 		unsigned int i, idx, len;
 		char *buf;
 
-		fds.fd     = fd;
+		fds.fd     = NETMAP_FD(netmap);
 		fds.events = POLLIN;
 
 		poll(&fds, 1, -1);
 
-		ring = NETMAP_RXRING(nifp, 0);
+		ring = NETMAP_RXRING(netmap->nifp, 0);
 
 		if (nm_ring_empty(ring))
 			continue;
@@ -72,7 +92,7 @@ receiver(int fd, struct netmap_if *nifp) {
 		buf = NETMAP_BUF(ring, idx);
 		len = ring->slot[i].len;
 
-		/* process packet */
+		process_packet(buf);
 
 		ring->head = ring->cur = nm_ring_next(ring, i);
 	}

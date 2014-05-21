@@ -4,11 +4,11 @@ require 'rake/clean'
 NAME    = 'eth'
 
 CC      = ENV['CC'] || 'clang'
-CFLAGS  = ENV['CFLAGS'].to_s + " -Wall -pedantic -g -DDEBUG -Wno-zero-length-array -Wno-gnu-zero-variadic-macro-arguments -I ./include -I ./deps/picotcp/build/include -I ./deps/netmap/sys"
-LDFLAGS = ENV['LDFLAGS'].to_s
+CFLAGS  = ENV['CFLAGS'].to_s + " -Wall -pedantic -g -DDEBUG -Wno-zero-length-array -Wno-gnu-zero-variadic-macro-arguments -I ./include -I ./deps/netmap/sys `pkg-config --cflags glib-2.0`"
+LDFLAGS = ENV['LDFLAGS'].to_s + " `pkg-config --libs glib-2.0`"
 
-PARSER  = FileList['src/http11/*.rl']
-SOURCES = FileList['src/*.c'] + FileList['src/*/*.c']
+PARSER  = FileList['src/*.rl']
+SOURCES = FileList['src/*.c'] + FileList['src/**/*c']
 OBJECTS = (SOURCES.ext('o') + PARSER.ext('o')).uniq
 
 CLEAN.include(OBJECTS).include(NAME).include(PARSER.ext('c'))
@@ -25,7 +25,7 @@ task :netmap do
 end
 
 file NAME => OBJECTS do
-	sh "#{CC} #{LDFLAGS} #{OBJECTS} deps/picotcp/build/lib/libpicotcp.a -o #{NAME}"
+	sh "#{CC} #{LDFLAGS} #{OBJECTS} -o #{NAME}"
 end
 
 rule '.c' => '.rl' do |file|

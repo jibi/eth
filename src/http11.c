@@ -1,11 +1,12 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #include <eth/http11.h>
 
@@ -168,7 +169,7 @@ eth_http_response(eth_parser *request) {
 }
 
 char *
-handle_http_request(struct pico_socket *client, char *request, size_t len) {
+handle_http_request(char *request, size_t len) {
 	char *response;
 
 	eth_parser *parsed_req = new_eth_parser();
@@ -182,3 +183,4 @@ handle_http_request(struct pico_socket *client, char *request, size_t len) {
 
 	return response;
 }
+

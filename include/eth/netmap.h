@@ -1,5 +1,8 @@
-#include <net/netmap.h>
+#define NETMAP_WITH_LIBS
+#include <net/netmap_user.h>
 
-struct netmap_if *open_netmap_if(const char *ifname, int *ret_fd);
-void receiver(int fd, struct netmap_if *nifp);
+extern struct nm_desc *netmap;
+
+void init_netmap(char *ifname);
+void netmap_recv_loop(void (*process_packet)(char *));
 

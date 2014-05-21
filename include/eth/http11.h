@@ -1,5 +1,4 @@
 #include <sys/types.h>
-#include <pico_socket.h>
 
 #define BUFFER_LEN 1024
 
@@ -47,4 +46,4 @@ int eth_parser_is_finished(eth_parser *parser);
 
 eth_parser *new_eth_parser();
 void delete_eth_parser(eth_parser *p);
-char *handle_http_request(struct pico_socket *client, char *request, size_t len);
+char *handle_http_request(char *request, size_t len);

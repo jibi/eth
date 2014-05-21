@@ -18,7 +18,7 @@
 
 #define PRINT_RST     "\033[0m"
 
-int debug_level = 2;
+int debug_level = 4;
 void do_log(const char *fmt, va_list args, const char *type);
 
 void

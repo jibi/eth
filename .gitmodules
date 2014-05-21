@@ -1,6 +1,3 @@
-[submodule "deps/picotcp"]
-	path = deps/picotcp
-	url = https://github.com/tass-belgium/picotcp
 [submodule "deps/netmap"]
 	path = deps/netmap
 	url = https://code.google.com/p/netmap
