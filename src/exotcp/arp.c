@@ -12,10 +12,10 @@
 
 #include <eth/netmap.h>
 
-#include <eth/yoctonet.h>
-#include <eth/yoctonet/card.h>
-#include <eth/yoctonet/eth.h>
-#include <eth/yoctonet/arp.h>
+#include <eth/exotcp.h>
+#include <eth/exotcp/card.h>
+#include <eth/exotcp/eth.h>
+#include <eth/exotcp/arp.h>
 
 /* this is a "prebuild" arp reply packet, so when we need to respond we just
  * need to set target mac and ip address:

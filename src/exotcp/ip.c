@@ -1,11 +1,11 @@
 #include <eth/log.h>
 
 #include <eth.h>
-#include <eth/yoctonet.h>
-#include <eth/yoctonet/card.h>
-#include <eth/yoctonet/eth.h>
-#include <eth/yoctonet/ip.h>
-#include <eth/yoctonet/tcp.h>
+#include <eth/exotcp.h>
+#include <eth/exotcp/card.h>
+#include <eth/exotcp/eth.h>
+#include <eth/exotcp/ip.h>
+#include <eth/exotcp/tcp.h>
 
 void
 process_ip(char *packet_buf) {

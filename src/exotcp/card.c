@@ -4,8 +4,8 @@
 #include <netinet/ether.h>
 
 #include <eth.h>
-#include <eth/yoctonet.h>
-#include <eth/yoctonet/card.h>
+#include <eth/exotcp.h>
+#include <eth/exotcp/card.h>
 
 struct ether_addr mac_addr;
 struct in_addr    ip_addr;

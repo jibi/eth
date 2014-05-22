@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 
 #include <eth/log.h>
-#include <eth/yoctonet.h>
+#include <eth/exotcp.h>
 
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>

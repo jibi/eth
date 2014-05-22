@@ -9,11 +9,11 @@
 #include <netinet/ether.h>
 
 #include <eth.h>
-#include <eth/yoctonet.h>
-#include <eth/yoctonet/card.h>
-#include <eth/yoctonet/eth.h>
-#include <eth/yoctonet/arp.h>
-#include <eth/yoctonet/ip.h>
+#include <eth/exotcp.h>
+#include <eth/exotcp/card.h>
+#include <eth/exotcp/eth.h>
+#include <eth/exotcp/arp.h>
+#include <eth/exotcp/ip.h>
 
 unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
