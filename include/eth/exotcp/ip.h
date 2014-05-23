@@ -1,6 +1,8 @@
 #include <stdint.h>
 
-void process_ip(char *packet_buf);
+#include <eth/exotcp.h>
+
+void process_ip(packet_t *p);
 
 typedef struct ip_hdr_s {
 	uint32_t hdr_len:4;

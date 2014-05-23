@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#include <eth/exotcp.h>
+
 typedef struct arp_hdr_s {
 	uint16_t hw_type;
 	uint16_t proto_type;
@@ -20,7 +22,7 @@ typedef struct arp_hdr_s {
 
 
 void init_arp();
-void process_arp(char *packet_buf);
+void process_arp(packet_t *p);
 void dump_arp_hdr(arp_hdr_t *hdr);
 
 

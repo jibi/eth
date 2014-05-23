@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#include <eth/exotcp.h>
+
 typedef struct tcp_hdr_s {
 	uint16_t src_port;
 	uint16_t dst_port;
@@ -20,7 +22,7 @@ typedef struct tcp_hdr_s {
 # define TCP_FLAG_ACK  0x10
 # define TCP_FLAG_URG  0x20
 
-void process_tcp(char *packet_buf);
+void process_tcp(packet_t *p);
 
 typedef enum tcp_state_e {
 	SYN_RCVD,

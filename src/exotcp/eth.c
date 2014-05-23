@@ -20,6 +20,7 @@ unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 void
 process_eth(char *packet_buf) {
 	eth_hdr_t *eth_hdr = (eth_hdr_t *) packet_buf;
+	packet_t *p;
 
 	dump_eth_hdr(eth_hdr);
 
@@ -29,11 +30,13 @@ process_eth(char *packet_buf) {
 		return;
 	}
 
+	p= malloc(sizeof(packet_t));
+	p->eth_hdr = (eth_hdr_t *) packet_buf;
 
 	if (eth_hdr->mac_type == ETH_TYPE_IPV4) {
-		process_ip(packet_buf);
+		process_ip(p);
 	} else if (eth_hdr->mac_type == ETH_TYPE_ARP) {
-		process_arp(packet_buf);
+		process_arp(p);
 	}
 }
 

@@ -162,36 +162,41 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 }
 
 void
-process_tcp_new_conn(char *packet_buf) {
-	ip_hdr_t *ip_hdr   = (ip_hdr_t *)  (packet_buf + sizeof(eth_hdr_t));
-	tcp_hdr_t *tcp_hdr = (tcp_hdr_t *) (packet_buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
+send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
+
+}
+
+void
+process_tcp_new_conn(packet_t *p) {
+	p->tcp_hdr = (tcp_hdr_t *) (p->ip_hdr + sizeof(ip_hdr_t));
 
 	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
 
 	conn->key = conn_key;
-	conn->key->src_port = tcp_hdr->src_port;
-	conn->key->src_addr = ip_hdr->src_addr;
-	conn->ack           = tcp_hdr->ack;
-	conn->seq           = tcp_hdr->seq;
+	conn->key->src_port = p->tcp_hdr->src_port;
+	conn->key->src_addr = p->ip_hdr->src_addr;
+	conn->ack           = p->tcp_hdr->ack;
+	conn->seq           = p->tcp_hdr->seq;
 	conn->state         = SYN_RCVD;
 
 	log_debug1("recv TCP syn");
 
-	if (tcp_hdr->data_offset > 5) {
-		parse_tcp_options(tcp_hdr, conn);
+	if (p->tcp_hdr->data_offset > 5) {
+		parse_tcp_options(p->tcp_hdr, conn);
 	}
+
+	send_tcp_syn_ack(p, conn);
 }
 
 void
-process_tcp_new_conn_ack(char *packet_buf) {
-	ip_hdr_t *ip_hdr   = (ip_hdr_t *)  (packet_buf + sizeof(eth_hdr_t));
-	tcp_hdr_t *tcp_hdr = (tcp_hdr_t *) (ip_hdr + sizeof(ip_hdr_t));
+process_tcp_new_conn_ack(packet_t *p) {
+	p->tcp_hdr = (tcp_hdr_t *) (p->ip_hdr + sizeof(ip_hdr_t));
 	tcp_conn_t *conn;
 
 	tcp_conn_key_t key = {
-		.src_port = tcp_hdr->src_port,
-		.src_addr = ip_hdr->src_addr
+		.src_port = p->tcp_hdr->src_port,
+		.src_addr = p->ip_hdr->src_addr
 	};
 
 	conn = g_hash_table_lookup(tcb_hash, &key);
@@ -206,20 +211,20 @@ process_tcp_new_conn_ack(char *packet_buf) {
 }
 
 void
-process_tcp_segment(char *packet_buf) {
+process_tcp_segment(packet_t *p) {
 
 }
 
 void
-process_tcp(char *packet_buf) {
-	tcp_hdr_t *tcp_hdr = (tcp_hdr_t *) (packet_buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
+process_tcp(packet_t *packet) {
+	packet->tcp_hdr = (tcp_hdr_t *) (packet + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
 
-	if (tcp_hdr->flags == TCP_FLAG_SYN) {
-		process_tcp_new_conn(packet_buf);
-	} else if (tcp_hdr->flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)) {
-		process_tcp_new_conn_ack(packet_buf);
+	if (packet->tcp_hdr->flags == TCP_FLAG_SYN) {
+		process_tcp_new_conn(packet);
+	} else if (packet->tcp_hdr->flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)) {
+		process_tcp_new_conn_ack(packet);
 	} else {
-		process_tcp_segment(packet_buf);
+		process_tcp_segment(packet);
 	}
 }
 

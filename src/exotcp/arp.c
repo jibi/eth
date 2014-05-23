@@ -51,18 +51,18 @@ init_arp() {
 }
 
 void
-process_arp(char *packet_buf) {
-	arp_hdr_t *arp_hdr = (arp_hdr_t *) (packet_buf + sizeof(eth_hdr_t));
+process_arp(packet_t *p) {
+	p->arp_hdr = (arp_hdr_t *) (p + sizeof(eth_hdr_t));
 
-	if (arp_hdr->opcode != HTONS(ARP_OPCODE_REQUEST)) {
+	if (p->arp_hdr->opcode != HTONS(ARP_OPCODE_REQUEST)) {
 		return;
 	}
 
-	dump_arp_hdr(arp_hdr);
+	dump_arp_hdr(p->arp_hdr);
 
-	memcpy(prebuild_arp_packet.eth.mac_dst, arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
-	memcpy(prebuild_arp_packet.arp.target_hw_addr, arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
-	memcpy(prebuild_arp_packet.arp.target_proto_addr, arp_hdr->sender_proto_addr, sizeof(struct in_addr));
+	memcpy(prebuild_arp_packet.eth.mac_dst, p->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
+	memcpy(prebuild_arp_packet.arp.target_hw_addr, p->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
+	memcpy(prebuild_arp_packet.arp.target_proto_addr, p->arp_hdr->sender_proto_addr, sizeof(struct in_addr));
 
 	nm_inject(netmap, &prebuild_arp_packet, sizeof(eth_hdr_t) + sizeof(arp_hdr_t));
 

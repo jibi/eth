@@ -3,7 +3,9 @@
 #include <stdint.h>
 #include <net/ethernet.h>
 
-typedef struct eth {
+#include <eth/exotcp.h>
+
+typedef struct eth_hdr_s {
 	uint8_t  mac_dst[6];
 	uint8_t  mac_src[6];
 	uint16_t mac_type;
