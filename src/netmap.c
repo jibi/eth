@@ -69,7 +69,7 @@ init_netmap(char *ifname) {
 }
 
 void
-netmap_recv_loop(void (*process_packet)(char *)) {
+netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 	while (1) {
 		struct pollfd fds;
 		struct netmap_ring *ring;
@@ -92,7 +92,7 @@ netmap_recv_loop(void (*process_packet)(char *)) {
 		buf = NETMAP_BUF(ring, idx);
 		len = ring->slot[i].len;
 
-		process_packet(buf);
+		process_packet(buf, len);
 
 		ring->head = ring->cur = nm_ring_next(ring, i);
 	}

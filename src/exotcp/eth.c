@@ -18,7 +18,7 @@
 unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
 void
-process_eth(char *packet_buf) {
+process_eth(char *packet_buf, size_t len) {
 	eth_hdr_t *eth_hdr = (eth_hdr_t *) packet_buf;
 	packet_t *p;
 
@@ -32,6 +32,7 @@ process_eth(char *packet_buf) {
 
 	p= malloc(sizeof(packet_t));
 	p->eth_hdr = (eth_hdr_t *) packet_buf;
+	p->len     = len;
 
 	if (eth_hdr->mac_type == ETH_TYPE_IPV4) {
 		process_ip(p);
