@@ -14,10 +14,10 @@ struct tcp_hdr_s;
 typedef struct packet_s {
 	struct eth_hdr_s *eth_hdr;
 
-//	union {
+	union {
 	struct ip_hdr_s  *ip_hdr;
 	struct arp_hdr_s *arp_hdr;
-//	};
+	};
 
 	struct tcp_hdr_s *tcp_hdr;
 } packet_t;
