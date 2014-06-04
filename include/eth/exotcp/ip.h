@@ -2,8 +2,6 @@
 
 #include <eth/exotcp.h>
 
-void process_ip(packet_t *p);
-
 typedef struct ip_hdr_s {
 	uint32_t hdr_len:4;
 	uint32_t version:4;
@@ -20,4 +18,7 @@ typedef struct ip_hdr_s {
 } __attribute__ ((packed)) ip_hdr_t;
 
 #define IP_PROTO_TCP 0x6
+
+void process_ip(packet_t *p);
+void ip_checksum(packet_t *p);
 
