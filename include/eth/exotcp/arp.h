@@ -14,12 +14,11 @@ typedef struct arp_hdr_s {
 	uint8_t  target_proto_addr[4];
 } __attribute__ ((packed)) arp_hdr_t;
 
-#define ARP_HW_TYPE_ETHERNET 0x1
-#define ARP_PROTO_TYPE_IP    0x8
+#define ARP_HW_TYPE_ETHERNET HTONS(0x1)
+#define ARP_PROTO_TYPE_IP    HTONS(0x0800)
 
-#define ARP_OPCODE_REQUEST   0x1
-#define ARP_OPCODE_REPLY     0x2
-
+#define ARP_OPCODE_REQUEST   HTONS(0x1)
+#define ARP_OPCODE_REPLY     HTONS(0x2)
 
 void init_arp();
 void process_arp(packet_t *p);

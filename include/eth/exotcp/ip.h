@@ -8,8 +8,7 @@ typedef struct ip_hdr_s {
 	uint8_t  tos;
 	uint16_t total_len;
 	uint16_t id;
-	uint32_t flags:3;
-	uint32_t frag_offset:13;
+	uint16_t frag_offset;
 	uint8_t  ttl;
 	uint8_t  proto;
 	uint16_t check;
@@ -20,5 +19,5 @@ typedef struct ip_hdr_s {
 #define IP_PROTO_TCP 0x6
 
 void process_ip(packet_t *p);
-void ip_checksum(packet_t *p);
+void init_ip_packet(ip_hdr_t *ip_hdr);
 

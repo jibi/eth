@@ -31,6 +31,7 @@ process_eth(char *packet_buf, size_t len) {
 	}
 
 	p= malloc(sizeof(packet_t));
+	p->buf     = packet_buf;
 	p->eth_hdr = (eth_hdr_t *) packet_buf;
 	p->len     = len;
 

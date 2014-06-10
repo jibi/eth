@@ -5,98 +5,77 @@
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 
+#include <sys/time.h>
+
 #include <eth/log.h>
 
+#include <eth/netmap.h>
+
 #include <eth/exotcp.h>
+#include <eth/exotcp/checksum.h>
 #include <eth/exotcp/card.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>
+#include <eth/exotcp/hash.h>
 
 #include <glib.h>
 
 GHashTable *tcb_hash;
 
 struct {
-	eth_hdr_t eth;
-	ip_hdr_t  ip;
-	tcp_hdr_t tcp;
-} prebuild_tcp_packet;
+	eth_hdr_t          eth;
+	ip_hdr_t           ip;
+	tcp_hdr_t          tcp;
+	tcp_syn_ack_opts_t opts;
+} __attribute__ ((packed)) syn_ack_tcp_packet;
+
+uint16_t tcp_syn_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_syn_ack_opts_t *tcp_opts);
 
 void
-init_prebuild_tcp_packet() {
-	memcpy(prebuild_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
-	prebuild_tcp_packet.eth.mac_type       = ETH_TYPE_ARP;
+init_syn_ack_tcp_packet() {
+	/*
+	 * tcp header
+	 */
+	syn_ack_tcp_packet.tcp.src_port    = HTONS(8080);
+	syn_ack_tcp_packet.tcp.res         = 0;
+	syn_ack_tcp_packet.tcp.window      = HTONS(0x4000); /* XXX */
+	syn_ack_tcp_packet.tcp.data_offset = 0xa;
+	syn_ack_tcp_packet.tcp.flags       = (TCP_FLAG_SYN | TCP_FLAG_ACK);
 
-	prebuild_tcp_packet.ip.version     = 4;
-	prebuild_tcp_packet.ip.hdr_len     = 5;
-	prebuild_tcp_packet.ip.tos         = 0;
-	//prebuild_tcp_packet.ip.total_len = tbd;
-	prebuild_tcp_packet.ip.id          = 0;
-	prebuild_tcp_packet.ip.flags       = 0x2; /* dont fragment */
-	prebuild_tcp_packet.ip.frag_offset = 0;
-	prebuild_tcp_packet.ip.ttl         = 64;
-	prebuild_tcp_packet.ip.proto       = IP_PROTO_TCP;
-	//prebuild_tcp_packet.ip.check     = tbd;
-	memcpy(&prebuild_tcp_packet.ip.src_addr, &ip_addr, sizeof(struct in_addr));
-	//prebuild_tcp_packet.ip.dst_addr  = tbd;
+	/*
+	 * tcp opts
+	 */
+	syn_ack_tcp_packet.opts.mss.code       = TCP_OPT_MSS_CODE;
+	syn_ack_tcp_packet.opts.mss.len        = TCP_OPT_MSS_LEN;
+
+	syn_ack_tcp_packet.opts.sack_perm.code = TCP_OPT_SACK_PERM_CODE;
+	syn_ack_tcp_packet.opts.sack_perm.len  = TCP_OPT_SACK_PERM_LEN;
+
+	syn_ack_tcp_packet.opts.ts.code        = TCP_OPT_TS_CODE;
+	syn_ack_tcp_packet.opts.ts.len         = TCP_OPT_TS_LEN;
+
+	syn_ack_tcp_packet.opts.nop            = TCP_OPT_NOP_CODE;
+
+	syn_ack_tcp_packet.opts.win_scale.code = TCP_OPT_WIN_SCALE_CODE;
+	syn_ack_tcp_packet.opts.win_scale.len  = TCP_OPT_WIN_SCALE_LEN;
+
+	/*
+	 * ip header
+	 */
+
+	init_ip_packet(&syn_ack_tcp_packet.ip);
 	
-	prebuild_tcp_packet.tcp.src_port    = HTONS(8080);
-	//prebuild_tcp_packet.tcp.dst_port  = HTONS(8080);
-	prebuild_tcp_packet.tcp.data_offset = 4;
-	prebuild_tcp_packet.tcp.res         = 0;
-	prebuild_tcp_packet.tcp.window      = HTONS(0x4000); /* XXX */
+	/*
+	 * eth header
+	 */
+	memcpy(syn_ack_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
+	syn_ack_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
 }
-
-static uint32_t
-murmur_hash( const void * key, int len, uint32_t seed ) {
-	const uint32_t m          = 0x5bd1e995;
-	const int r               = 24;
-	uint32_t h                = seed ^ len;
-	const unsigned char *data = (const unsigned char *)key;
-
-	while (len >= 4) {
-		uint32_t k = *(uint32_t*)data;
-
-		k *= m;
-		k ^= k >> r;
-		k *= m;
-
-		h *= m;
-		h ^= k;
-
-		data += 4;
-		len -= 4;
-	}
-
-	switch(len) {
-		case 3: h ^= data[2] << 16;
-		case 2: h ^= data[1] << 8;
-		case 1: h ^= data[0];
-			h *= m;
-	};
-
-	h ^= h >> 13;
-	h *= m;
-	h ^= h >> 15;
-
-	return h;
-}
-
-static guint
-hash_tcp_conn(gconstpointer t) {
-	return murmur_hash(t, sizeof(tcp_conn_key_t), 0);
-}
-
-static gboolean
-cmp_tcp_conn(gconstpointer t1, gconstpointer t2) {
-	return !memcmp(t1, t2, sizeof(tcp_conn_key_t));
-}
-
 
 void
 init_tcp() {
-	init_prebuild_tcp_packet();
+	init_syn_ack_tcp_packet();
 
 	tcb_hash = g_hash_table_new(hash_tcp_conn, cmp_tcp_conn);
 }
@@ -104,7 +83,7 @@ init_tcp() {
 void
 parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 	char *cur_opt;
-	cur_opt = ((char *) tcp_hdr) + 5 * 4;
+	cur_opt = ((char *) tcp_hdr) + sizeof(tcp_hdr_t);
 
 	log_debug2("tcp options:");
 
@@ -128,13 +107,13 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 				break;
 			case 3:
 				log_debug2("window scaling");
-				conn->win_scaling = 1;
+				conn->win_scale = 1;
 
 				cur_opt += 3;
 				break;
 			case 4:
 				log_debug2("sack permitted");
-				conn->sack_permitted = 1;
+				conn->sack_perm = 1;
 
 				cur_opt += 2;
 				break;
@@ -144,9 +123,9 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 				cur_opt += *(cur_opt + 1);
 				break;
 			case 8:
-				log_debug2("timestamp");
-				conn->timestamp      = (int) *(cur_opt + 2);
-				conn->echo_timestamp = (int) *(cur_opt + 6);
+				log_debug2("ts");
+				conn->ts      = *((int *) (cur_opt + 2));
+				conn->echo_ts = *((int *) (cur_opt + 6));
 
 				cur_opt += 10;
 				break;
@@ -163,21 +142,45 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 
 void
 send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
+	struct timeval tv;
+	gettimeofday(&tv, 0);
 
+	/* XXX: maybe one day figure it out what's happening with this options */
+	syn_ack_tcp_packet.opts.mss.size        = 65495;
+	syn_ack_tcp_packet.opts.ts.ts           = tv.tv_sec * 1000 + tv.tv_usec;
+	syn_ack_tcp_packet.opts.ts.echo         = conn->ts;
+	syn_ack_tcp_packet.opts.win_scale.shift = 7;
+
+	syn_ack_tcp_packet.tcp.dst_port    = p->tcp_hdr->src_port;
+	syn_ack_tcp_packet.tcp.ack         = htonl(ntohl(conn->remote_seq) + 1);
+	syn_ack_tcp_packet.tcp.seq         = conn->local_seq;
+
+	conn->local_seq++;
+
+	syn_ack_tcp_packet.tcp.checksum    = 0;
+
+	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
+	syn_ack_tcp_packet.ip.check = 0;
+	syn_ack_tcp_packet.ip.check = checksum((const char *) &syn_ack_tcp_packet.ip, sizeof(ip_hdr_t));
+
+	syn_ack_tcp_packet.tcp.checksum = tcp_syn_ack_checksum(&syn_ack_tcp_packet.ip, &syn_ack_tcp_packet.tcp, &syn_ack_tcp_packet.opts);
+
+	memcpy(syn_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+
+	nm_inject(netmap, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
+	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 }
 
 void
 process_tcp_new_conn(packet_t *p) {
-	p->tcp_hdr = (tcp_hdr_t *) (p->ip_hdr + sizeof(ip_hdr_t));
-
 	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
 
-	conn->key = conn_key;
+	conn->key           = conn_key;
 	conn->key->src_port = p->tcp_hdr->src_port;
 	conn->key->src_addr = p->ip_hdr->src_addr;
-	conn->ack           = p->tcp_hdr->ack;
-	conn->seq           = p->tcp_hdr->seq;
+	conn->remote_seq    = p->tcp_hdr->seq;
+	conn->local_seq     = rand();
 	conn->state         = SYN_RCVD;
 
 	log_debug1("recv TCP syn");
@@ -187,6 +190,8 @@ process_tcp_new_conn(packet_t *p) {
 	}
 
 	send_tcp_syn_ack(p, conn);
+
+	g_hash_table_insert(tcb_hash, conn->key, conn);
 }
 
 void
@@ -217,7 +222,7 @@ process_tcp_segment(packet_t *p) {
 
 void
 process_tcp(packet_t *packet) {
-	packet->tcp_hdr = (tcp_hdr_t *) (packet + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
+	packet->tcp_hdr = (tcp_hdr_t *) (packet->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
 
 	if (packet->tcp_hdr->flags == TCP_FLAG_SYN) {
 		process_tcp_new_conn(packet);
@@ -228,29 +233,21 @@ process_tcp(packet_t *packet) {
 	}
 }
 
-/*
-void
-hash_test() {
+uint16_t
+tcp_syn_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_syn_ack_opts_t *tcp_opts) {
+	tcp_pseudo_header_t pseudo_hdr;
+	uint32_t sum = 0;
 
-	tcp_conn_key_t t1, t2;
-	t1.src_port = 1;
-	t1.src_addr = 2;
+	pseudo_hdr.src_addr = ip_hdr->src_addr;
+	pseudo_hdr.dst_addr = ip_hdr->dst_addr;
+	pseudo_hdr.reserved = 0;
+	pseudo_hdr.proto    = IP_PROTO_TCP;
+	pseudo_hdr.length   = HTONS(sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t));
 
-	t2.src_port = 2;
-	t2.src_addr = 2;
+	sum = partial_checksum(sum, (const char *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
+	sum = partial_checksum(sum, (const char *) tcp_hdr, sizeof(tcp_hdr_t));
+	sum = finalize_checksum(sum, (const char *) tcp_opts, sizeof(tcp_syn_ack_opts_t));
 
-	g_hash_table_insert(hash, &t1, "Richmond");
-	g_hash_table_insert(hash, &t1, "Austin");
-	g_hash_table_insert(hash, &t2, "Columbus");
-
-	printf("There are %d keys in the hash\n", g_hash_table_size(hash));
-	printf("The capital of Texas is %s\n", g_hash_table_lookup(hash, &t1));
-	gboolean found = g_hash_table_remove(hash, "Virginia");
-
-	printf("The value 'Virginia' was %sfound and removed\n", found ? "" : "not ");
-
-	g_hash_table_destroy(hash);
-
+	return sum;
 }
-*/
 

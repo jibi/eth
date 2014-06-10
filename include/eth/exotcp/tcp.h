@@ -15,12 +15,70 @@ typedef struct tcp_hdr_s {
 	uint16_t urg_pointer;
 } __attribute__ ((packed)) tcp_hdr_t;
 
-# define TCP_FLAG_FIN  0x01
-# define TCP_FLAG_SYN  0x02
-# define TCP_FLAG_RST  0x04
-# define TCP_FLAG_PUSH 0x08
-# define TCP_FLAG_ACK  0x10
-# define TCP_FLAG_URG  0x20
+typedef struct tcp_pseudo_header_s {
+	uint32_t src_addr;
+	uint32_t dst_addr;
+	uint8_t  reserved;
+	uint8_t  proto;
+	uint16_t length;
+} __attribute__ ((packed)) tcp_pseudo_header_t;
+
+#define TCP_FLAG_FIN  0x01
+#define TCP_FLAG_SYN  0x02
+#define TCP_FLAG_RST  0x04
+#define TCP_FLAG_PUSH 0x08
+#define TCP_FLAG_ACK  0x10
+#define TCP_FLAG_URG  0x20
+
+typedef struct tcp_mss_opt_s {
+	uint8_t  code;
+	uint8_t  len;
+	uint16_t size;
+} __attribute__ ((packed)) tcp_mss_opt_t;
+
+typedef struct tcp_sack_perm_opt_t {
+	uint8_t  code;
+	uint8_t  len;
+} __attribute__ ((packed)) tcp_sack_perm_opt_t;
+
+typedef uint8_t tcp_nop_opt_t;
+
+typedef struct tcp_ts_opt_s {
+	uint8_t  code;
+	uint8_t  len;
+	uint32_t ts;
+	uint32_t echo;
+} __attribute__ ((packed)) tcp_ts_opt_t;
+
+typedef struct tcp_win_scale_opt_s {
+	uint8_t code;
+	uint8_t len;
+	uint8_t shift;
+
+} __attribute__ ((packed)) tcp_win_scale_opt_t;
+
+typedef struct tcp_syn_ack_opts_s {
+	tcp_mss_opt_t       mss;
+	tcp_sack_perm_opt_t sack_perm;
+	tcp_ts_opt_t        ts;
+	tcp_nop_opt_t       nop;
+	tcp_win_scale_opt_t win_scale;
+
+} __attribute__ ((packed)) tcp_syn_ack_opts_t;
+
+#define TCP_OPT_EEO_CODE       0x0
+#define TCP_OPT_NOP_CODE       0x1
+#define TCP_OPT_MSS_CODE       0x2
+#define TCP_OPT_WIN_SCALE_CODE 0x3
+#define TCP_OPT_SACK_PERM_CODE 0x4
+#define TCP_OPT_SACK_CODE      0x5
+#define TCP_OPT_TS_CODE        0x8
+
+#define TCP_OPT_MSS_LEN       4
+#define TCP_OPT_WIN_SCALE_LEN 3
+#define TCP_OPT_SACK_PERM_LEN 2
+//#define TCP_OPT_SACK_LEN
+#define TCP_OPT_TS_LEN        10
 
 void process_tcp(packet_t *p);
 
@@ -36,14 +94,16 @@ typedef struct tcp_conn_key_s {
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
-	int ack;
-	int seq;
+	int remote_seq;
+	int local_seq;
 	tcp_state_t state;
 
 	uint16_t mss;
-	uint8_t  win_scaling;
-	uint8_t  sack_permitted;
-	uint32_t timestamp;
-	uint32_t echo_timestamp;
+	uint8_t  win_scale;
+	uint8_t  sack_perm;
+	uint32_t ts;
+	uint32_t echo_ts;
 } tcp_conn_t;
+
+void init_tcp();
 

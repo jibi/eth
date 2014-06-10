@@ -35,11 +35,11 @@ init_prebuild_arp_packet() {
 	memcpy(prebuild_arp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
 	prebuild_arp_packet.eth.mac_type       = ETH_TYPE_ARP;
 
-	prebuild_arp_packet.arp.hw_type        = HTONS(ARP_HW_TYPE_ETHERNET);
+	prebuild_arp_packet.arp.hw_type        = ARP_HW_TYPE_ETHERNET;
 	prebuild_arp_packet.arp.proto_type     = ARP_PROTO_TYPE_IP;
 	prebuild_arp_packet.arp.hw_addr_len    = sizeof(struct ether_addr);
 	prebuild_arp_packet.arp.proto_addr_len = sizeof(struct in_addr);
-	prebuild_arp_packet.arp.opcode         = HTONS(ARP_OPCODE_REPLY);
+	prebuild_arp_packet.arp.opcode         = ARP_OPCODE_REPLY;
 
 	memcpy(prebuild_arp_packet.arp.sender_hw_addr, &mac_addr, sizeof(struct ether_addr));
 	memcpy(prebuild_arp_packet.arp.sender_proto_addr, &ip_addr, sizeof(struct in_addr));
@@ -52,9 +52,9 @@ init_arp() {
 
 void
 process_arp(packet_t *p) {
-	p->arp_hdr = (arp_hdr_t *) (p + sizeof(eth_hdr_t));
+	p->arp_hdr = (arp_hdr_t *) (p->buf + sizeof(eth_hdr_t));
 
-	if (p->arp_hdr->opcode != HTONS(ARP_OPCODE_REQUEST)) {
+	if (p->arp_hdr->opcode != ARP_OPCODE_REQUEST) {
 		return;
 	}
 
@@ -81,5 +81,4 @@ dump_arp_hdr(arp_hdr_t __attribute__ ((unused)) *hdr) {
 	printf("\tproto addr len: %d\n\n", hdr->proto_addr_len);
 #endif
 }
-
 

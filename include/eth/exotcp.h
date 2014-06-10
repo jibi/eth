@@ -23,6 +23,7 @@ typedef struct packet_s {
 
 	struct tcp_hdr_s *tcp_hdr;
 
+	char *buf;
 	size_t len;
 } packet_t;
 
