@@ -11,51 +11,51 @@
 #include <eth/http11.h>
 
 static void
-field(eth_parser* hp, const char *field, size_t flen, const char *value, size_t vlen) {
+field(eth_parser_t* hp, const char *field, size_t flen, const char *value, size_t vlen) {
 //	printf("field:\n\tname:\t%.*s\n\tvalue:\t%.*s\n",  (int)flen, field,  (int)vlen, value);
 }
 
 static void
-method(eth_parser* hp, const char *at, size_t length) {
+method(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->method, "%.*s", (int) length, at);
 
 }
 
 static void
-uri(eth_parser* hp, const char *at, size_t length) {
+uri(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->uri, "%.*s", (int) length, at);
 }
 
 static void
-fragment(eth_parser* hp, const char *at, size_t length) {
+fragment(eth_parser_t* hp, const char *at, size_t length) {
 	//printf("frag:\t\t%.*s\n", (int) length, at);
 }
 
 static void
-path(eth_parser* hp, const char *at, size_t length) {
+path(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->path, "%.*s", (int) length, at);
 }
 
 static void
-query(eth_parser* hp, const char *at, size_t length) {
+query(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->query, "%.*s", (int) length, at);
 
 }
 
 static void
-version(eth_parser* hp, const char *at, size_t length) {
+version(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->version, "%.*s", (int) length, at);
 
 }
 
 static void
-header_done(eth_parser* hp, const char *at, size_t length) {
+header_done(eth_parser_t* hp, const char *at, size_t length) {
 
 }
 
-eth_parser *
+eth_parser_t *
 new_eth_parser() {
-	eth_parser *parser = malloc(sizeof(eth_parser));
+	eth_parser_t *parser = malloc(sizeof(eth_parser_t));
 
 	parser->field_cb       = field;
 	parser->method_cb      = method;
@@ -78,7 +78,7 @@ new_eth_parser() {
 }
 
 void
-delete_eth_parser(eth_parser *p) {
+delete_eth_parser(eth_parser_t *p) {
 	if (p->method)
 		free(p->method);
 
@@ -99,7 +99,7 @@ delete_eth_parser(eth_parser *p) {
 }
 
 char *
-test_response(eth_parser *request) {
+test_response(eth_parser_t *request) {
 	char *body;
 	char *response;
 
@@ -124,7 +124,7 @@ test_response(eth_parser *request) {
 }
 
 char *
-build_404(eth_parser *request) {
+build_404(eth_parser_t *request) {
 	char *response;
 	char *body = "<h1>404 Not Found :(<h1>";
 
@@ -138,7 +138,7 @@ build_404(eth_parser *request) {
 }
 
 char *
-eth_http_response(eth_parser *request) {
+eth_http_response(eth_parser_t *request) {
 	char *path;
 	char *wd = getcwd(NULL, 0);
 	int fd;
@@ -172,7 +172,7 @@ char *
 handle_http_request(char *request, size_t len) {
 	char *response;
 
-	eth_parser *parsed_req = new_eth_parser();
+	eth_parser_t *parsed_req = new_eth_parser();
 	eth_parser_execute(parsed_req, request, len + 1, 0);
 
 	if (!strcmp(parsed_req->path, "/autism")) {

@@ -135,7 +135,7 @@ snake_upcase_char(char *c) {
 %% write data;
 
 int
-eth_parser_init(eth_parser *parser)  {
+eth_parser_init(eth_parser_t *parser)  {
 	int cs = 0;
 
 	%% write init;
@@ -154,7 +154,7 @@ eth_parser_init(eth_parser *parser)  {
 
 /** exec **/
 size_t
-eth_parser_execute(eth_parser *parser, const char *buffer, size_t len, size_t off)  {
+eth_parser_execute(eth_parser_t *parser, const char *buffer, size_t len, size_t off)  {
 	const char *p, *pe;
 	int cs = parser->cs;
 
@@ -183,7 +183,7 @@ eth_parser_execute(eth_parser *parser, const char *buffer, size_t len, size_t of
 }
 
 int
-eth_parser_finish(eth_parser *parser) {
+eth_parser_finish(eth_parser_t *parser) {
 	if (eth_parser_has_error(parser)) {
 		return -1;
 	} else if (eth_parser_is_finished(parser)) {
@@ -194,12 +194,12 @@ eth_parser_finish(eth_parser *parser) {
 }
 
 int
-eth_parser_has_error(eth_parser *parser) {
+eth_parser_has_error(eth_parser_t *parser) {
 	return parser->cs == eth_parser_error;
 }
 
 int
-eth_parser_is_finished(eth_parser *parser) {
+eth_parser_is_finished(eth_parser_t *parser) {
 	return parser->cs >= eth_parser_first_final;
 }
 
