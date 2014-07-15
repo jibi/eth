@@ -23,12 +23,12 @@ typedef struct tcp_pseudo_header_s {
 	uint16_t length;
 } __attribute__ ((packed)) tcp_pseudo_header_t;
 
-#define TCP_FLAG_FIN  0x01
-#define TCP_FLAG_SYN  0x02
-#define TCP_FLAG_RST  0x04
-#define TCP_FLAG_PUSH 0x08
-#define TCP_FLAG_ACK  0x10
-#define TCP_FLAG_URG  0x20
+#define TCP_FLAG_FIN 0x01
+#define TCP_FLAG_SYN 0x02
+#define TCP_FLAG_RST 0x04
+#define TCP_FLAG_PSH 0x08
+#define TCP_FLAG_ACK 0x10
+#define TCP_FLAG_URG 0x20
 
 typedef struct tcp_mss_opt_s {
 	uint8_t  code;
@@ -66,6 +66,12 @@ typedef struct tcp_syn_ack_opts_s {
 
 } __attribute__ ((packed)) tcp_syn_ack_opts_t;
 
+typedef struct tcp_ack_opts_s {
+	tcp_nop_opt_t nop[2];
+	tcp_ts_opt_t  ts;
+
+} __attribute__ ((packed)) tcp_ack_opts_t;
+
 #define TCP_OPT_EEO_CODE       0x0
 #define TCP_OPT_NOP_CODE       0x1
 #define TCP_OPT_MSS_CODE       0x2
@@ -87,6 +93,9 @@ typedef enum tcp_state_e {
 	ESTABLISHED
 } tcp_state_t;
 
+/* assuming the server will use only one address and one port, it is ok
+ * to use only src address and port as the TCP connection key */
+
 typedef struct tcp_conn_key_s {
 	uint32_t src_addr;
 	uint16_t src_port;
@@ -94,8 +103,8 @@ typedef struct tcp_conn_key_s {
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
-	int remote_seq;
-	int local_seq;
+	uint32_t last_ack;
+	uint32_t cur_seq;
 	tcp_state_t state;
 
 	uint16_t mss;

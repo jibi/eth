@@ -71,7 +71,7 @@ process_arp(packet_t *p) {
 
 void
 dump_arp_hdr(arp_hdr_t __attribute__ ((unused)) *hdr) {
-#ifdef DEBUG
+#if defined DEBUG && defined DUMP_PACKET
 	printf("[arp hdr]\n");
 
 	printf("\thw type: 0x%04x\n", ntohs(hdr->hw_type));

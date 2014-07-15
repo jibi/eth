@@ -21,4 +21,3 @@ void dump_eth_hdr(eth_hdr_t *hdr);
 char *format_eth_addr(unsigned char *a);
 int is_broadcast_addr(struct ether_addr *a);
 
-

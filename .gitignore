@@ -1,3 +1,4 @@
 /eth
 src/parser.c
 *.o
+tmp

@@ -44,7 +44,7 @@ process_eth(char *packet_buf, size_t len) {
 
 void
 dump_eth_hdr(eth_hdr_t __attribute__ ((unused)) *hdr) {
-#ifdef DEBUG
+#if defined DEBUG && defined DUMP_PACKET
 	char *mac_dst = format_eth_addr(hdr->mac_dst);
 	char *mac_src = format_eth_addr(hdr->mac_src);
 
