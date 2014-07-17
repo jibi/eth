@@ -42,6 +42,7 @@ typedef struct tcp_sack_perm_opt_t {
 } __attribute__ ((packed)) tcp_sack_perm_opt_t;
 
 typedef uint8_t tcp_nop_opt_t;
+typedef uint8_t tcp_eol_opt_t;
 
 typedef struct tcp_ts_opt_s {
 	uint8_t  code;
@@ -60,19 +61,20 @@ typedef struct tcp_win_scale_opt_s {
 typedef struct tcp_syn_ack_opts_s {
 	tcp_mss_opt_t       mss;
 	tcp_sack_perm_opt_t sack_perm;
-	tcp_ts_opt_t        ts;
-	tcp_nop_opt_t       nop;
 	tcp_win_scale_opt_t win_scale;
+	tcp_ts_opt_t        ts;
+	tcp_eol_opt_t       eol;
 
 } __attribute__ ((packed)) tcp_syn_ack_opts_t;
 
 typedef struct tcp_ack_opts_s {
-	tcp_nop_opt_t nop[2];
 	tcp_ts_opt_t  ts;
+	tcp_nop_opt_t nop;
+	tcp_eol_opt_t eol;
 
 } __attribute__ ((packed)) tcp_ack_opts_t;
 
-#define TCP_OPT_EEO_CODE       0x0
+#define TCP_OPT_EOL_CODE       0x0
 #define TCP_OPT_NOP_CODE       0x1
 #define TCP_OPT_MSS_CODE       0x2
 #define TCP_OPT_WIN_SCALE_CODE 0x3
@@ -106,6 +108,7 @@ typedef struct tcp_conn_s {
 	uint32_t last_ack;
 	uint32_t cur_seq;
 	tcp_state_t state;
+	uint32_t last_clock;
 
 	uint16_t mss;
 	uint8_t  win_scale;
@@ -115,4 +118,8 @@ typedef struct tcp_conn_s {
 } tcp_conn_t;
 
 void init_tcp();
+
+#define TCP_WINDOW_SIZE 0x4000
+#define TCP_MSS         1460
+#define TCP_WIN_SCALE   0
 

@@ -50,6 +50,23 @@ struct {
 static uint16_t tcp_syn_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_syn_ack_opts_t *tcp_opts);
 static uint16_t tcp_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_ack_opts_t *tcp_opts);
 
+int
+get_tcp_clock(tcp_conn_t *conn) {
+	struct timeval tv;
+	uint32_t       clock;
+
+	gettimeofday(&tv, 0);
+
+	clock = tv.tv_sec / 1000 + tv.tv_usec * 1000;
+
+	if (clock <= conn->last_clock) {
+		clock++;
+		conn->last_clock = clock;
+	}
+
+	return clock;
+}
+
 void
 init_syn_ack_tcp_packet() {
 	/*
@@ -60,8 +77,8 @@ init_syn_ack_tcp_packet() {
 	syn_ack_tcp_packet.tcp.res         = 0;
 
 	/* TODO: comply to TCP window size */
-	syn_ack_tcp_packet.tcp.window      = HTONS(0x4000);
-	syn_ack_tcp_packet.tcp.data_offset = 0xa;
+	syn_ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE);
+	syn_ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t)) / 4;
 	syn_ack_tcp_packet.tcp.flags       = (TCP_FLAG_SYN | TCP_FLAG_ACK);
 
 	/*
@@ -75,19 +92,19 @@ init_syn_ack_tcp_packet() {
 	syn_ack_tcp_packet.opts.sack_perm.code = TCP_OPT_SACK_PERM_CODE;
 	syn_ack_tcp_packet.opts.sack_perm.len  = TCP_OPT_SACK_PERM_LEN;
 
+	syn_ack_tcp_packet.opts.win_scale.code = TCP_OPT_WIN_SCALE_CODE;
+	syn_ack_tcp_packet.opts.win_scale.len  = TCP_OPT_WIN_SCALE_LEN;
+
 	syn_ack_tcp_packet.opts.ts.code        = TCP_OPT_TS_CODE;
 	syn_ack_tcp_packet.opts.ts.len         = TCP_OPT_TS_LEN;
 
-	syn_ack_tcp_packet.opts.nop            = TCP_OPT_NOP_CODE;
-
-	syn_ack_tcp_packet.opts.win_scale.code = TCP_OPT_WIN_SCALE_CODE;
-	syn_ack_tcp_packet.opts.win_scale.len  = TCP_OPT_WIN_SCALE_LEN;
+	syn_ack_tcp_packet.opts.eol            = TCP_OPT_EOL_CODE;
 
 	/*
 	 * ip header
 	 */
 
-	init_ip_packet(&syn_ack_tcp_packet.ip);
+	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_syn_ack_opts_t), 0);
 
 	/*
 	 * eth header
@@ -103,8 +120,8 @@ init_ack_tcp_packet() {
 	 */
 	ack_tcp_packet.tcp.src_port    = HTONS(8080);
 	ack_tcp_packet.tcp.res         = 0;
-	ack_tcp_packet.tcp.window      = HTONS(0x4000);
-	ack_tcp_packet.tcp.data_offset = 0x8;
+	ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
+	ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t)) / 4;
 	ack_tcp_packet.tcp.flags       = TCP_FLAG_ACK;
 
 	/*
@@ -113,21 +130,20 @@ init_ack_tcp_packet() {
 	ack_tcp_packet.opts.ts.code = TCP_OPT_TS_CODE;
 	ack_tcp_packet.opts.ts.len  = TCP_OPT_TS_LEN;
 
-	ack_tcp_packet.opts.nop[0]  = TCP_OPT_NOP_CODE;
-	ack_tcp_packet.opts.nop[1]  = TCP_OPT_NOP_CODE;
+	ack_tcp_packet.opts.nop     = TCP_OPT_NOP_CODE;
+	ack_tcp_packet.opts.eol     = TCP_OPT_EOL_CODE;
 
 	/*
 	 * ip header
 	 */
 
-	init_ip_packet(&ack_tcp_packet.ip);
+	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_ack_opts_t), 0);
 
 	/*
 	 * eth header
 	 */
 	memcpy(ack_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
 	ack_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
-
 }
 
 void
@@ -200,16 +216,14 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 
 void
 send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
-	struct timeval tv;
-	gettimeofday(&tv, 0);
 
 	log_debug2("send tcp SYN+ACK packet");
 
 	/* XXX */
-	syn_ack_tcp_packet.opts.mss.size        = 65495;
-	syn_ack_tcp_packet.opts.ts.ts           = tv.tv_sec * 1000 + tv.tv_usec;
+	syn_ack_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
+	syn_ack_tcp_packet.opts.ts.ts           = htonl(get_tcp_clock(conn));
 	syn_ack_tcp_packet.opts.ts.echo         = conn->ts;
-	syn_ack_tcp_packet.opts.win_scale.shift = 7;
+	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
 	syn_ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
 	syn_ack_tcp_packet.tcp.ack      = htonl(conn->last_ack);
@@ -230,12 +244,10 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
 void
 send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
-	struct timeval tv;
-	gettimeofday(&tv, 0);
 
 	log_debug2("send tcp ACK packet");
 
-	ack_tcp_packet.opts.ts.ts   = tv.tv_sec * 1000 + tv.tv_usec;
+	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	ack_tcp_packet.opts.ts.echo = conn->ts;
 
 	ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
@@ -257,8 +269,12 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
 void
 process_tcp_new_conn(packet_t *p) {
+	struct timeval tv;
+
 	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
+
+	gettimeofday(&tv, 0);
 
 	conn->key           = conn_key;
 	conn->key->src_port = p->tcp_hdr->src_port;
@@ -266,6 +282,7 @@ process_tcp_new_conn(packet_t *p) {
 	conn->last_ack      = ntohl(p->tcp_hdr->seq);
 	conn->cur_seq       = rand();
 	conn->state         = SYN_RCVD;
+	conn->last_clock    = tv.tv_sec / 1000 + tv.tv_usec * 1000;
 
 	log_debug1("recv tcp SYN packet");
 
@@ -312,13 +329,13 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	char *payload;
 	uint16_t  len = (ntohs(p->ip_hdr->total_len) - sizeof(ip_hdr_t) - (p->tcp_hdr->data_offset * 4));
 
+	parse_tcp_options(p->tcp_hdr, conn);
+
 	if (len) {
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
-		log_info("payload: %.*s", len, payload);
+		log_info("payload:\n%.*s", len, payload);
 
-		printf("ack: %u, len: %d\n", conn->last_ack, len);
 		conn->last_ack += len;
-		printf("ack: %u, len: %d\n", conn->last_ack, len);
 		send_tcp_ack(p, conn);
 
 	} else {
