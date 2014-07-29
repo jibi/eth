@@ -71,6 +71,18 @@ typedef struct tcp_ack_opts_s {
 	tcp_eol_opt_t eol;
 } __attribute__ ((packed)) tcp_ack_opts_t;
 
+typedef struct tcp_data_opts_t {
+	tcp_ts_opt_t  ts;
+	tcp_nop_opt_t nop;
+	tcp_eol_opt_t eol;
+} __attribute__ ((packed)) tcp_data_opts_t;
+
+typedef struct tcp_fin_ack_opts_s {
+	tcp_ts_opt_t  ts;
+	tcp_nop_opt_t nop;
+	tcp_eol_opt_t eol;
+} __attribute__ ((packed)) tcp_fin_ack_opts_t;
+
 #define TCP_OPT_EOL_CODE       0x0
 #define TCP_OPT_NOP_CODE       0x1
 #define TCP_OPT_MSS_CODE       0x2
