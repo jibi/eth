@@ -4,7 +4,6 @@
 #include <eth.h>
 #include <eth/exotcp.h>
 #include <eth/exotcp/checksum.h>
-#include <eth/exotcp/card.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>

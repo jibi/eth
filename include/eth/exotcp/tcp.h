@@ -55,7 +55,6 @@ typedef struct tcp_win_scale_opt_s {
 	uint8_t code;
 	uint8_t len;
 	uint8_t shift;
-
 } __attribute__ ((packed)) tcp_win_scale_opt_t;
 
 typedef struct tcp_syn_ack_opts_s {
@@ -64,14 +63,12 @@ typedef struct tcp_syn_ack_opts_s {
 	tcp_win_scale_opt_t win_scale;
 	tcp_ts_opt_t        ts;
 	tcp_eol_opt_t       eol;
-
 } __attribute__ ((packed)) tcp_syn_ack_opts_t;
 
 typedef struct tcp_ack_opts_s {
 	tcp_ts_opt_t  ts;
 	tcp_nop_opt_t nop;
 	tcp_eol_opt_t eol;
-
 } __attribute__ ((packed)) tcp_ack_opts_t;
 
 #define TCP_OPT_EOL_CODE       0x0

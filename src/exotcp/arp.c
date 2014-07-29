@@ -13,7 +13,6 @@
 #include <eth/netmap.h>
 
 #include <eth/exotcp.h>
-#include <eth/exotcp/card.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/arp.h>
 

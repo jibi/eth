@@ -13,11 +13,12 @@
 
 #include <eth/exotcp.h>
 #include <eth/exotcp/checksum.h>
-#include <eth/exotcp/card.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>
 #include <eth/exotcp/hash.h>
+
+#include <eth/app.h>
 
 #include <glib.h>
 
@@ -73,7 +74,7 @@ init_syn_ack_tcp_packet() {
 	 * tcp header
 	 */
 
-	syn_ack_tcp_packet.tcp.src_port    = HTONS(8080);
+	syn_ack_tcp_packet.tcp.src_port    = HTONS(listening_port);
 	syn_ack_tcp_packet.tcp.res         = 0;
 
 	/* TODO: comply to TCP window size */
@@ -181,7 +182,12 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 				break;
 			case 3:
 				log_debug2("\twindow scaling");
-				conn->win_scale = 1;
+
+				if (conn->state == SYN_RCVD) {
+					/* win scaling is only valid during the
+					 * 3wh*/
+					conn->win_scale = (short) *(cur_opt + 2);
+				}
 
 				cur_opt += 3;
 				break;
@@ -225,10 +231,10 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 	syn_ack_tcp_packet.opts.ts.echo         = conn->ts;
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
-	syn_ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	syn_ack_tcp_packet.tcp.ack      = htonl(conn->last_ack);
-	syn_ack_tcp_packet.tcp.seq      = htonl(conn->cur_seq);
-	syn_ack_tcp_packet.tcp.checksum = 0;
+	syn_ack_tcp_packet.tcp.dst_port         = p->tcp_hdr->src_port;
+	syn_ack_tcp_packet.tcp.ack              = htonl(conn->last_ack);
+	syn_ack_tcp_packet.tcp.seq              = htonl(conn->cur_seq);
+	syn_ack_tcp_packet.tcp.checksum         = 0;
 
 	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
 	syn_ack_tcp_packet.ip.check = 0;
@@ -270,6 +276,8 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 void
 process_tcp_new_conn(packet_t *p) {
 	struct timeval tv;
+
+	/* check if port is correct */
 
 	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
@@ -332,14 +340,13 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	parse_tcp_options(p->tcp_hdr, conn);
 
 	if (len) {
+		/* assuming */
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
 		log_info("payload:\n%.*s", len, payload);
 
 		conn->last_ack += len;
 		send_tcp_ack(p, conn);
 
-	} else {
-		log_info("length 0");
 	}
 }
 
