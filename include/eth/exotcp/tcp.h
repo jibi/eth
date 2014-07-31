@@ -57,31 +57,25 @@ typedef struct tcp_win_scale_opt_s {
 	uint8_t shift;
 } __attribute__ ((packed)) tcp_win_scale_opt_t;
 
-typedef struct tcp_syn_ack_opts_s {
+typedef struct tcp_mss_sack_win_ts_opts_s {
 	tcp_mss_opt_t       mss;
 	tcp_sack_perm_opt_t sack_perm;
 	tcp_win_scale_opt_t win_scale;
 	tcp_ts_opt_t        ts;
 	tcp_eol_opt_t       eol;
-} __attribute__ ((packed)) tcp_syn_ack_opts_t;
+} __attribute__ ((packed)) tcp_mss_sack_win_ts_opts_t;
 
-typedef struct tcp_ack_opts_s {
+typedef tcp_mss_sack_win_ts_opts_t tcp_syn_ack_opts_t;
+
+typedef struct tcp_ts_opts_s {
 	tcp_ts_opt_t  ts;
 	tcp_nop_opt_t nop;
 	tcp_eol_opt_t eol;
-} __attribute__ ((packed)) tcp_ack_opts_t;
+} __attribute__ ((packed)) tcp_ts_opts_t;
 
-typedef struct tcp_data_opts_t {
-	tcp_ts_opt_t  ts;
-	tcp_nop_opt_t nop;
-	tcp_eol_opt_t eol;
-} __attribute__ ((packed)) tcp_data_opts_t;
-
-typedef struct tcp_fin_ack_opts_s {
-	tcp_ts_opt_t  ts;
-	tcp_nop_opt_t nop;
-	tcp_eol_opt_t eol;
-} __attribute__ ((packed)) tcp_fin_ack_opts_t;
+typedef tcp_ts_opts_t  tcp_ack_opts_t;
+typedef tcp_ts_opts_t tcp_data_opts_t;
+typedef tcp_ts_opts_t tcp_fin_ack_opts_t;
 
 #define TCP_OPT_EOL_CODE       0x0
 #define TCP_OPT_NOP_CODE       0x1

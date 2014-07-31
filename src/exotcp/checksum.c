@@ -4,12 +4,12 @@
 #include <eth/exotcp/checksum.h>
 
 uint16_t
-checksum(const char *buf, unsigned size) {
+checksum(const uint8_t *buf, uint32_t size) {
 	return finalize_checksum(0, buf, size);
 }
 
 uint32_t
-partial_checksum(uint32_t sum, const char *buf, unsigned size) {
+partial_checksum(uint32_t sum, const uint8_t *buf, uint32_t size) {
 	int i;
 
 	for (i = 0; i < size - 1; i += 2) {
@@ -27,7 +27,7 @@ partial_checksum(uint32_t sum, const char *buf, unsigned size) {
 }
 
 uint16_t
-finalize_checksum(uint32_t sum, const char *buf, unsigned size) {
+finalize_checksum(uint32_t sum, const uint8_t *buf, uint32_t size) {
 	sum = partial_checksum(sum, buf, size);
 
 	while (sum >> 16) {

@@ -4,7 +4,7 @@ require 'rake/clean'
 NAME    = 'eth'
 
 CC      = ENV['CC'] || 'clang'
-CFLAGS  = ENV['CFLAGS'].to_s + " -Wall -pedantic -g -DDEBUG=2 -Wno-c11-extensions -I ./include -I ./deps/netmap/sys `pkg-config --cflags glib-2.0`"
+CFLAGS  = ENV['CFLAGS'].to_s + " -Wall -pedantic -g -DDEBUG=1 -Wno-c11-extensions -I ./include -I ./deps/netmap/sys `pkg-config --cflags glib-2.0`"
 LDFLAGS = ENV['LDFLAGS'].to_s + " `pkg-config --libs glib-2.0`"
 
 PARSER  = FileList['src/*.rl']

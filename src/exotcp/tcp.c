@@ -69,10 +69,15 @@ struct {
 	tcp_fin_ack_opts_t opts;
 } __attribute__ ((packed)) fin_ack_tcp_packet;
 
-static uint16_t tcp_syn_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_syn_ack_opts_t *tcp_opts);
-static uint16_t tcp_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_ack_opts_t *tcp_opts);
-static uint16_t tcp_data_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_data_opts_t *tcp_opts, uint8_t *data, uint8_t len);
-static uint16_t tcp_fin_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_fin_ack_opts_t *tcp_opts);
+static uint16_t tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len, void *data, uint32_t data_len);
+#define tcp_syn_ack_checksum(ip_hdr, tcp_hdr, opts) \
+	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_syn_ack_opts_t), NULL, 0)
+#define tcp_ack_checksum(ip_hdr, tcp_hdr, opts) \
+	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_ack_opts_t), NULL, 0)
+#define tcp_data_checksum(ip_hdr, tcp_hdr, opts, data, data_len) \
+	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_data_opts_t), data, data_len)
+#define tcp_fin_ack_checksum(ip_hdr, tcp_hdr, opts) \
+	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_fin_ack_opts_t), NULL, 0)
 
 int
 get_tcp_clock(tcp_conn_t *conn) {
@@ -238,7 +243,7 @@ init_fin_ack_tcp_packet() {
 
 void
 init_tcp() {
-	log_debug2("init_tcp");
+	log_debug1("init_tcp");
 
 	init_syn_ack_tcp_packet();
 	init_ack_tcp_packet();
@@ -314,7 +319,8 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 void
 send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
-	log_debug2("send tcp SYN+ACK packet");
+	netmap_tx_ring_desc_t *tx_desc;
+	log_debug1("send tcp SYN+ACK packet");
 
 	/* XXX */
 	syn_ack_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
@@ -329,20 +335,26 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
 	syn_ack_tcp_packet.ip.check = 0;
-	syn_ack_tcp_packet.ip.check = checksum((const char *) &syn_ack_tcp_packet.ip, sizeof(ip_hdr_t));
+	syn_ack_tcp_packet.ip.check = checksum((uint8_t *) &syn_ack_tcp_packet.ip, sizeof(ip_hdr_t));
 
 	syn_ack_tcp_packet.tcp.checksum = tcp_syn_ack_checksum(&syn_ack_tcp_packet.ip, &syn_ack_tcp_packet.tcp, &syn_ack_tcp_packet.opts);
 
 	memcpy(syn_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	nm_inject(netmap, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
+	tx_desc = netmap_get_tx_ring_buffer();
+	memcpy(tx_desc->buf, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
+	*tx_desc->len = sizeof(syn_ack_tcp_packet);
+
+	free(tx_desc);
+
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 }
 
 void
 send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
-	log_debug2("send tcp ACK packet");
+	netmap_tx_ring_desc_t *tx_desc;
+	log_debug1("send tcp ACK packet");
 
 	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	ack_tcp_packet.opts.ts.echo = conn->ts;
@@ -354,20 +366,27 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(&ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
 	ack_tcp_packet.ip.check = 0;
-	ack_tcp_packet.ip.check = checksum((const char *) &ack_tcp_packet.ip, sizeof(ip_hdr_t));
+	ack_tcp_packet.ip.check = checksum((uint8_t *) &ack_tcp_packet.ip, sizeof(ip_hdr_t));
 
 	ack_tcp_packet.tcp.checksum = tcp_ack_checksum(&ack_tcp_packet.ip, &ack_tcp_packet.tcp, &ack_tcp_packet.opts);
 
 	memcpy(ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	nm_inject(netmap, &ack_tcp_packet, sizeof(ack_tcp_packet));
+	tx_desc = netmap_get_tx_ring_buffer();
+	memcpy(tx_desc->buf, &ack_tcp_packet, sizeof(ack_tcp_packet));
+	*tx_desc->len = sizeof(ack_tcp_packet);
+
+	free(tx_desc);
+
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+
 }
 
 void
 send_tcp_data(packet_t *p, tcp_conn_t *conn, uint8_t *data, uint8_t len) {
 
-	log_debug2("send tcp data packet");
+	netmap_tx_ring_desc_t *tx_desc;
+	log_debug1("send tcp data packet");
 
 	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	data_tcp_packet.opts.ts.echo = conn->ts;
@@ -380,21 +399,28 @@ send_tcp_data(packet_t *p, tcp_conn_t *conn, uint8_t *data, uint8_t len) {
 	memcpy(&data_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
 	data_tcp_packet.ip.total_len        = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
 	data_tcp_packet.ip.check = 0;
-	data_tcp_packet.ip.check = checksum((const char *) &data_tcp_packet.ip, sizeof(ip_hdr_t));
+	data_tcp_packet.ip.check = checksum((uint8_t *) &data_tcp_packet.ip, sizeof(ip_hdr_t));
 	memcpy(data_tcp_packet.data, data, len);
 
 	data_tcp_packet.tcp.checksum = tcp_data_checksum(&data_tcp_packet.ip, &data_tcp_packet.tcp, &data_tcp_packet.opts, data, len);
 
 	memcpy(data_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	nm_inject(netmap, &data_tcp_packet, sizeof(eth_hdr_t) + sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
+	tx_desc = netmap_get_tx_ring_buffer();
+	memcpy(tx_desc->buf, &data_tcp_packet, sizeof(data_tcp_packet));
+	*tx_desc->len = sizeof(data_tcp_packet);
+
+	free(tx_desc);
+
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+
 }
 
 void
 send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 
-	log_debug2("send tcp FIN+ACK packet");
+	netmap_tx_ring_desc_t *tx_desc;
+	log_debug1("send tcp FIN+ACK packet");
 
 	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	fin_ack_tcp_packet.opts.ts.echo = conn->ts;
@@ -406,16 +432,21 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(&fin_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
 	fin_ack_tcp_packet.ip.check = 0;
-	fin_ack_tcp_packet.ip.check = checksum((const char *) &fin_ack_tcp_packet.ip, sizeof(ip_hdr_t));
+	fin_ack_tcp_packet.ip.check = checksum((uint8_t *) &fin_ack_tcp_packet.ip, sizeof(ip_hdr_t));
 
 	fin_ack_tcp_packet.tcp.checksum = tcp_fin_ack_checksum(&fin_ack_tcp_packet.ip, &fin_ack_tcp_packet.tcp, &fin_ack_tcp_packet.opts);
 
 	memcpy(fin_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	nm_inject(netmap, &fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
-}
+	tx_desc = netmap_get_tx_ring_buffer();
+	memcpy(tx_desc->buf, &fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
+	*tx_desc->len = sizeof(fin_ack_tcp_packet);
 
+	free(tx_desc);
+
+	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+
+}
 
 void
 process_tcp_new_conn(packet_t *p) {
@@ -484,15 +515,16 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	parse_tcp_options(p->tcp_hdr, conn);
 
 	if (len) {
-		/* assuming */
+		/* TODO: if the PSH flag is not set, enqueue the incomplete
+		 * payload and wait for the other segments */
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
-		log_info("payload:\n%.*s", len, payload);
 
 		conn->last_ack += len;
 		send_tcp_ack(p, conn);
 
-		/* TODO: enqueue if its not a push */
+		/* XXX: assume the HTTP header will fit in a single packet */
 		char *response = handle_http_request(payload, len);
+
 		send_tcp_data(p, conn, (uint8_t *) response, strlen(response));
 		free(response);
 
@@ -503,11 +535,18 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
+remove_tcb(tcp_conn_t *conn) {
+	g_hash_table_remove(tcb_hash, conn->key);
+	free(conn->key);
+	free(conn);
+}
+
+void
 process_tcp_fin(packet_t *p, tcp_conn_t *conn) {
 	conn->last_ack++;
 
 	send_tcp_fin_ack(p, conn);
-	/* TODO: free tcp */
+	remove_tcb(conn);
 }
 
 void
@@ -523,8 +562,10 @@ process_tcp(packet_t *p) {
 		switch (conn->state) {
 			case ESTABLISHED:
 				if (p->tcp_hdr->flags & TCP_FLAG_FIN) {
+					log_debug1("recv tcp FIN packet");
 					process_tcp_fin(p, conn);
 				} else {
+					log_debug1("recv tcp segment");
 					process_tcp_segment(p, conn);
 				}
 				break;
@@ -546,75 +587,26 @@ process_tcp(packet_t *p) {
 }
 
 static uint16_t
-tcp_syn_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_syn_ack_opts_t *tcp_opts) {
-	tcp_pseudo_header_t pseudo_hdr;
+tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len, void *data, uint32_t data_len) {
 	uint32_t sum = 0;
+	tcp_pseudo_header_t pseudo_hdr;
 
 	pseudo_hdr.src_addr = ip_hdr->src_addr;
 	pseudo_hdr.dst_addr = ip_hdr->dst_addr;
 	pseudo_hdr.reserved = 0;
 	pseudo_hdr.proto    = IP_PROTO_TCP;
-	pseudo_hdr.length   = HTONS(sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t));
+	pseudo_hdr.length   = htons(sizeof(tcp_hdr_t) + opts_len + data_len);
 
-	sum = partial_checksum(sum,  (const char *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
-	sum = partial_checksum(sum,  (const char *) tcp_hdr, sizeof(tcp_hdr_t));
-	sum = finalize_checksum(sum, (const char *) tcp_opts, sizeof(tcp_syn_ack_opts_t));
-
-	return sum;
-}
+	sum = partial_checksum(sum,  (const uint8_t *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
+	sum = partial_checksum(sum,  (const uint8_t *) tcp_hdr, sizeof(tcp_hdr_t));
 
 
-static uint16_t
-tcp_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_ack_opts_t *tcp_opts) {
-	tcp_pseudo_header_t pseudo_hdr;
-	uint32_t sum = 0;
-
-	pseudo_hdr.src_addr = ip_hdr->src_addr;
-	pseudo_hdr.dst_addr = ip_hdr->dst_addr;
-	pseudo_hdr.reserved = 0;
-	pseudo_hdr.proto    = IP_PROTO_TCP;
-	pseudo_hdr.length   = HTONS(sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t));
-
-	sum = partial_checksum(sum,  (const char *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
-	sum = partial_checksum(sum,  (const char *) tcp_hdr, sizeof(tcp_hdr_t));
-	sum = finalize_checksum(sum, (const char *) tcp_opts, sizeof(tcp_ack_opts_t));
-
-	return sum;
-}
-
-static uint16_t
-tcp_data_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_data_opts_t *tcp_opts, uint8_t *data, uint8_t len) {
-	tcp_pseudo_header_t pseudo_hdr;
-	uint32_t sum = 0;
-
-	pseudo_hdr.src_addr = ip_hdr->src_addr;
-	pseudo_hdr.dst_addr = ip_hdr->dst_addr;
-	pseudo_hdr.reserved = 0;
-	pseudo_hdr.proto    = IP_PROTO_TCP;
-	pseudo_hdr.length   = HTONS(sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
-
-	sum = partial_checksum(sum,  (const char *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
-	sum = partial_checksum(sum,  (const char *) tcp_hdr, sizeof(tcp_hdr_t));
-	sum = partial_checksum(sum,  (const char *) tcp_opts, sizeof(tcp_data_opts_t));
-	sum = finalize_checksum(sum, (const char *) data, len);
-
-	return sum;
-}
-
-static uint16_t
-tcp_fin_ack_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, tcp_fin_ack_opts_t *tcp_opts) {
-	tcp_pseudo_header_t pseudo_hdr;
-	uint32_t sum = 0;
-
-	pseudo_hdr.src_addr = ip_hdr->src_addr;
-	pseudo_hdr.dst_addr = ip_hdr->dst_addr;
-	pseudo_hdr.reserved = 0;
-	pseudo_hdr.proto    = IP_PROTO_TCP;
-	pseudo_hdr.length   = HTONS(sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t));
-
-	sum = partial_checksum(sum,  (const char *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
-	sum = partial_checksum(sum,  (const char *) tcp_hdr, sizeof(tcp_hdr_t));
-	sum = finalize_checksum(sum, (const char *) tcp_opts, sizeof(tcp_fin_ack_opts_t));
+	if (!data_len) {
+		sum = finalize_checksum(sum, (const uint8_t *) opts, opts_len);
+	} else {
+		sum = partial_checksum(sum, opts, opts_len);
+		sum = finalize_checksum(sum, data, data_len);
+	}
 
 	return sum;
 }

@@ -54,7 +54,7 @@ dump(const char *data_buffer, size_t length) {
 
 void
 log_debug1(const char *msg __attribute__((unused)), ...) {
-#ifdef DEBUG
+#if DEBUG >= 1
 	va_list args;
 
 	va_start(args, msg);
@@ -65,7 +65,7 @@ log_debug1(const char *msg __attribute__((unused)), ...) {
 
 void
 log_debug2(const char *msg __attribute__((unused)), ...) {
-#ifdef DEBUG
+#if DEBUG >= 2
 	va_list args;
 
 	if (debug_level < 2) {

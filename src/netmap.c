@@ -10,6 +10,7 @@
 
 #include <eth/log.h>
 #include <eth/exotcp.h>
+#include <eth/netmap.h>
 
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
@@ -61,7 +62,7 @@ init_netmap(char *ifname) {
 	char _ifname[IFNAMSIZ + 7];
 
 	sprintf(_ifname, "netmap:%s", ifname);
-	netmap = nm_open(_ifname, NULL, 0, 0);
+	netmap = nm_open(_ifname, NULL, NETMAP_NO_TX_POLL, 0);
 
 	if (!netmap) {
 		fatal_tragedy(1, "Cannot open netmap device");
@@ -98,26 +99,29 @@ netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 	}
 }
 
-void
-send_packet(int fd, struct netmap_if *nifp) {
+netmap_tx_ring_desc_t *
+netmap_get_tx_ring_buffer() {
 	struct pollfd fds;
 	struct netmap_ring *ring;
 	int i, idx;
-	void *buf;
 
-	fds.fd     = fd;
+	netmap_tx_ring_desc_t *tx_desc = malloc(sizeof(netmap_tx_ring_desc_t));
+
+	fds.fd     = NETMAP_FD(netmap);
 	fds.events = POLLOUT;
 
-	ring = NETMAP_TXRING(nifp, 0);
+	ring = NETMAP_TXRING(netmap->nifp, 0);
 
 	poll(&fds, 1, -1);
 
 	i    = ring->cur;
 	idx  = ring->slot[i].buf_idx;
 
-	buf  = NETMAP_BUF(ring, idx);
-//	ring->slot[i].len = len;
+	tx_desc->buf  = NETMAP_BUF(ring, idx);
+	tx_desc->len = &ring->slot[i].len;
 
 	ring->head = ring->cur = nm_ring_next(ring, i);
+
+	return tx_desc;
 }
 
