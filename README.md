@@ -38,9 +38,9 @@ set interface up
 # ifconfig $if up
 ```
 
-and start eth server
+and start eth server with
 
 ```
-# ./eth
+# ./eth $ifname $ifmac $ifip $port
 ```
 
