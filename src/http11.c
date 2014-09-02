@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2014 jibi <jibi@paranoici.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,10 +116,12 @@ delete_eth_parser(eth_parser_t *p) {
 
 }
 
-char *
-test_response(eth_parser_t *request) {
+/*
+ * TODO: add "Connection: close" if client does not request keep-alive
+ */
+void
+test_response(http_response_t *response) {
 	char *body;
-	char *response;
 
 	asprintf(&body,
 		"Oh, Hi.\n"
@@ -109,76 +129,76 @@ test_response(eth_parser_t *request) {
 		"method: %s\n"
 		"uri:    %s\n"
 		"path:   %s\n"
-		"query:  %s\n", request->method, request->uri, request->path, request->query);
+		"query:  %s\n", response->parser->method, response->parser->uri, response->parser->path, response->parser->query);
 
 
-	asprintf(&response,
+	asprintf(&response->header_buf,
 		"HTTP/1.1 200 OK\r\n"
 		"Host: sbiriguda\r\n"
 		"Content-Length: %d\r\n"
 		"\r\n%s", (int) strlen(body), body);
 
-	free(body);
+	response->header_len = strlen(response->header_buf);
+	response->file_len   = 0;
+	response->file_pos   = 0;
 
-	return response;
+	free(body);
 }
 
-char *
-build_404(eth_parser_t *request) {
-	char *response;
+void
+build_404(http_response_t *response) {
 	char *body = "<h1>404 Not Found :(<h1>";
 
-	asprintf(&response,
+	asprintf(&response->header_buf,
 		"HTTP/1.1 404 Not Found\r\n"
 		"Host: internet\r\n"
 		"Content-Length: %d\r\n"
 		"\r\n%s", (int) strlen(body), body);
 
-	return response;
+	response->header_len = strlen(response->header_buf);
+	response->file_len   = 0;
+	response->file_pos   = 0;
 }
 
-char *
-eth_http_response(eth_parser_t *request) {
+void
+eth_http_response(http_response_t *response) {
 	char *path;
 	char *wd = getcwd(NULL, 0);
-	int fd;
 	struct stat stat;
-	char *buf;
-	char *response;
 
-	asprintf(&path, "%s/htdocs/%s", wd, request->path);
+	asprintf(&path, "%s/htdocs/%s", wd, response->parser->path);
 
-	fd = open(path, O_RDONLY);
+	response->file_fd = open(path, O_RDONLY);
 
-	if (fd == -1) {
-		return build_404(request);
+	if (response->file_fd == -1) {
+		build_404(response);
+		return;
 	}
 
-	fstat(fd, &stat);
+	fstat(response->file_fd, &stat);
 
-	buf = malloc(stat.st_size);
-	read(fd, buf, stat.st_size);
-
-	asprintf(&response,
+	asprintf(&response->header_buf,
 		"HTTP/1.1 200 OK\r\n"
 		"Host: internet\r\n"
 		"Content-Length: %d\r\n"
-		"\r\n%s", (int) stat.st_size, buf);
+		"\r\n", (int) stat.st_size);
 
-	return response;
+	response->header_len = strlen(response->header_buf);
+	response->file_len   = stat.st_size;
+	response->file_pos   = 0;
 }
 
-char *
+http_response_t *
 handle_http_request(char *request, size_t len) {
-	char *response;
+	http_response_t *response = malloc(sizeof(http_response_t));
 
-	eth_parser_t *parsed_req = new_eth_parser();
-	eth_parser_execute(parsed_req, request, len + 1, 0);
+	response->parser = new_eth_parser();
+	eth_parser_execute(response->parser, request, len + 1, 0);
 
-	if (!strcmp(parsed_req->path, "/autism")) {
-		response = test_response(parsed_req);
+	if (!strcmp(response->parser->path, "/autism")) {
+		test_response(response);
 	} else {
-		response = eth_http_response(parsed_req);
+		eth_http_response(response);
 	}
 
 	return response;

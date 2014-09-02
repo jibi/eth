@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2014 jibi <jibi@paranoici.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,52 +28,15 @@
 
 #include <eth/log.h>
 #include <eth/exotcp.h>
+#include <eth/exotcp/tcp.h>
 #include <eth/netmap.h>
+
+#include <glib.h>
 
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
 
 struct nm_desc *netmap;
-
-#if 0
-struct netmap_if *
-open_netmap_if(const char *ifname, int *ret_fd) {
-	int fd, ret;
-	struct nmreq req;
-	void *mem;
-	struct netmap_if *nifp;
-
-	fd = open("/dev/netmap", O_RDWR);
-	if (fd < 0) {
-		return NULL;
-	}
-
-	bzero(&req, sizeof(struct nmreq));
-	strcpy(req.nr_name, ifname);
-
-	req.nr_version = NETMAP_API;
-	req.nr_flags   = NR_REG_ALL_NIC;
-	req.nr_ringid  = (NETMAP_NO_TX_POLL | NETMAP_DO_RX_POLL) & ~NETMAP_RING_MASK;
-
-	ret = ioctl(fd, NIOCREGIF, &req);
-	if (ret < 0) {
-		return NULL;
-	}
-
-	mem = mmap(NULL, req.nr_memsize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (!mem) {
-		return NULL;
-	}
-
-	nifp = NETMAP_IF(mem, req.nr_offset);
-	if (!nifp) {
-		return NULL;
-	}
-
-	*ret_fd = fd;
-	return nifp;
-}
-#endif
 
 void
 init_netmap(char *ifname) {
@@ -72,56 +53,87 @@ init_netmap(char *ifname) {
 void
 netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 	while (1) {
-		struct pollfd fds;
-		struct netmap_ring *ring;
+		struct pollfd recv_fds, send_fds;
+		struct netmap_ring *recv_ring, *send_ring;
 		unsigned int i, idx, len;
 		char *buf;
 
-		fds.fd     = NETMAP_FD(netmap);
-		fds.events = POLLIN;
+		GHashTableIter iter;
+		gpointer key, value;
 
-		poll(&fds, 1, -1);
+		recv_fds.fd     = NETMAP_FD(netmap);
+		recv_fds.events = POLLIN;
 
-		ring = NETMAP_RXRING(netmap->nifp, 0);
+		/*
+		 * TODO: set timeout to -1 or 0 based on the fact that we have
+		 * something or not to send
+		 */
+		poll(&recv_fds, 1, -1);
 
-		if (nm_ring_empty(ring))
-			continue;
+		recv_ring = NETMAP_RXRING(netmap->nifp, 0);
 
-		i   = ring->cur;
-		idx = ring->slot[i].buf_idx;
+		while (!nm_ring_empty(recv_ring)) {
+			i   = recv_ring->cur;
+			idx = recv_ring->slot[i].buf_idx;
 
-		buf = NETMAP_BUF(ring, idx);
-		len = ring->slot[i].len;
+			buf = NETMAP_BUF(recv_ring, idx);
+			len = recv_ring->slot[i].len;
 
-		process_packet(buf, len);
+			process_packet(buf, len);
 
-		ring->head = ring->cur = nm_ring_next(ring, i);
+			recv_ring->head = recv_ring->cur = nm_ring_next(recv_ring, i);
+		}
+
+		send_fds.fd     = NETMAP_FD(netmap);
+		send_fds.events = POLLOUT;
+
+		poll(&send_fds, 1, -1);
+		send_ring = NETMAP_TXRING(netmap->nifp, 0);
+
+		g_hash_table_iter_init (&iter, tcb_hash);
+		while (g_hash_table_iter_next (&iter, &key, &value)) {
+			tcp_conn_t *conn = value;
+
+			if (nm_ring_empty(send_ring)) {
+				break;
+			}
+
+			if (tcp_conn_has_data_to_send(conn)) {
+				tcp_conn_send_data(conn, netmap_get_tx_ring_buffer_no_poll());
+			}
+		}
+
+		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 	}
 }
 
 netmap_tx_ring_desc_t *
-netmap_get_tx_ring_buffer() {
-	struct pollfd fds;
+netmap_get_tx_ring_buffer_no_poll() {
 	struct netmap_ring *ring;
 	int i, idx;
 
-	netmap_tx_ring_desc_t *tx_desc = malloc(sizeof(netmap_tx_ring_desc_t));
-
-	fds.fd     = NETMAP_FD(netmap);
-	fds.events = POLLOUT;
-
 	ring = NETMAP_TXRING(netmap->nifp, 0);
-
-	poll(&fds, 1, -1);
-
 	i    = ring->cur;
 	idx  = ring->slot[i].buf_idx;
 
+	netmap_tx_ring_desc_t *tx_desc = malloc(sizeof(netmap_tx_ring_desc_t));
 	tx_desc->buf  = NETMAP_BUF(ring, idx);
 	tx_desc->len = &ring->slot[i].len;
 
 	ring->head = ring->cur = nm_ring_next(ring, i);
 
 	return tx_desc;
+}
+
+netmap_tx_ring_desc_t *
+netmap_get_tx_ring_buffer() {
+	struct pollfd fds;
+
+	fds.fd     = NETMAP_FD(netmap);
+	fds.events = POLLOUT;
+
+	poll(&fds, 1, -1);
+
+	return netmap_get_tx_ring_buffer_no_poll();
 }
 

@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2014 jibi <jibi@paranoici.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +37,9 @@
 #include <eth/exotcp/hash.h>
 
 #include <eth/http11.h>
+
+#define NETMAP_WITH_LIBS
+#include <net/netmap_user.h>
 
 #include <glib.h>
 
@@ -56,7 +77,6 @@ struct {
 	ip_hdr_t        ip;
 	tcp_hdr_t       tcp;
 	tcp_data_opts_t opts;
-	uint8_t         data[1500 - sizeof(eth_hdr_t) - sizeof(ip_hdr_t) - sizeof(tcp_hdr_t) - sizeof(tcp_data_opts_t)]; /* assuming we are using ethernet */
 } __attribute__ ((packed)) data_tcp_packet;
 
 /*
@@ -86,7 +106,7 @@ get_tcp_clock(tcp_conn_t *conn) {
 
 	gettimeofday(&tv, 0);
 
-	clock = tv.tv_sec / 1000 + tv.tv_usec * 1000;
+	clock = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 
 	if (clock <= conn->last_clock) {
 		clock++;
@@ -329,8 +349,12 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
 	syn_ack_tcp_packet.tcp.dst_port         = p->tcp_hdr->src_port;
-	syn_ack_tcp_packet.tcp.ack              = htonl(conn->last_ack);
-	syn_ack_tcp_packet.tcp.seq              = htonl(conn->cur_seq);
+
+	/*
+	 * with a SYN packet we need to ACK one byte.
+	 */
+	syn_ack_tcp_packet.tcp.ack              = htonl(conn->last_recv_byte + 1);
+	syn_ack_tcp_packet.tcp.seq              = htonl(conn->last_sent_byte);
 	syn_ack_tcp_packet.tcp.checksum         = 0;
 
 	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
@@ -360,8 +384,8 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 	ack_tcp_packet.opts.ts.echo = conn->ts;
 
 	ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	ack_tcp_packet.tcp.ack      = htonl(conn->last_ack);
-	ack_tcp_packet.tcp.seq      = htonl(conn->cur_seq);
+	ack_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
+	ack_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
 	ack_tcp_packet.tcp.checksum = 0;
 
 	memcpy(&ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
@@ -377,43 +401,32 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 	*tx_desc->len = sizeof(ack_tcp_packet);
 
 	free(tx_desc);
-
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
-
 }
 
 void
-send_tcp_data(packet_t *p, tcp_conn_t *conn, uint8_t *data, uint8_t len) {
+send_tcp_data(tcp_conn_t *conn, uint8_t *packet_buf, uint8_t *data, uint16_t len) {
 
-	netmap_tx_ring_desc_t *tx_desc;
 	log_debug1("send tcp data packet");
 
 	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	data_tcp_packet.opts.ts.echo = conn->ts;
 
-	data_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	data_tcp_packet.tcp.ack      = htonl(conn->last_ack);
-	data_tcp_packet.tcp.seq      = htonl(conn->cur_seq);
+	data_tcp_packet.tcp.dst_port = conn->key->src_port;
+	data_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
+	data_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
 	data_tcp_packet.tcp.checksum = 0;
 
-	memcpy(&data_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
-	data_tcp_packet.ip.total_len        = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
-	data_tcp_packet.ip.check = 0;
-	data_tcp_packet.ip.check = checksum((uint8_t *) &data_tcp_packet.ip, sizeof(ip_hdr_t));
-	memcpy(data_tcp_packet.data, data, len);
+	memcpy(&data_tcp_packet.ip.dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
+	data_tcp_packet.ip.total_len  = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
+	data_tcp_packet.ip.check      = 0;
+	data_tcp_packet.ip.check      = checksum((uint8_t *) &data_tcp_packet.ip, sizeof(ip_hdr_t));
 
 	data_tcp_packet.tcp.checksum = tcp_data_checksum(&data_tcp_packet.ip, &data_tcp_packet.tcp, &data_tcp_packet.opts, data, len);
 
-	memcpy(data_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	memcpy(data_tcp_packet.eth.mac_dst, conn->src_mac, sizeof(struct ether_addr));
 
-	tx_desc = netmap_get_tx_ring_buffer();
-	memcpy(tx_desc->buf, &data_tcp_packet, sizeof(data_tcp_packet));
-	*tx_desc->len = sizeof(data_tcp_packet);
-
-	free(tx_desc);
-
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
-
+	memcpy(packet_buf, &data_tcp_packet, sizeof(data_tcp_packet));
 }
 
 void
@@ -426,8 +439,8 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 	fin_ack_tcp_packet.opts.ts.echo = conn->ts;
 
 	fin_ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	fin_ack_tcp_packet.tcp.ack      = htonl(conn->last_ack);
-	fin_ack_tcp_packet.tcp.seq      = htonl(conn->cur_seq);
+	fin_ack_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
+	fin_ack_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
 	fin_ack_tcp_packet.tcp.checksum = 0;
 
 	memcpy(&fin_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
@@ -462,21 +475,23 @@ process_tcp_new_conn(packet_t *p) {
 	conn->key           = conn_key;
 	conn->key->src_port = p->tcp_hdr->src_port;
 	conn->key->src_addr = p->ip_hdr->src_addr;
-	conn->last_ack      = ntohl(p->tcp_hdr->seq);
-	conn->cur_seq       = rand();
-	conn->state         = SYN_RCVD;
-	conn->last_clock    = tv.tv_sec / 1000 + tv.tv_usec * 1000;
+	memcpy(conn->src_mac, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+
+	conn->last_recv_byte = ntohl(p->tcp_hdr->seq);
+	conn->last_sent_byte = 1; /* XXX: we use 1 instead of  rand(); to avoid (temporarily) seq numbers wraparound */
+	conn->state          = SYN_RCVD;
+	conn->last_clock     = tv.tv_sec / 1000 + tv.tv_usec * 1000;
+
+	conn->effective_window = 0;
+	conn->http_state       = NO_DATA;
+
+	conn->win_scale        = 0;
 
 	log_debug1("recv tcp SYN packet");
 
 	if (p->tcp_hdr->data_offset > 5) {
 		parse_tcp_options(p->tcp_hdr, conn);
 	}
-
-	/*
-	 * with a SYN packet we need to ACK one byte.
-	 */
-	conn->last_ack++;
 
 	send_tcp_syn_ack(p, conn);
 
@@ -501,7 +516,7 @@ process_3wh_ack(packet_t *p, tcp_conn_t *conn) {
 	/* TODO: check ack number */
 	/* TODO: calc RTT */
 
-	conn->cur_seq++;
+	conn->last_sent_byte++;
 
 	log_debug1("new connection established");
 	conn->state = ESTABLISHED;
@@ -514,23 +529,38 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 
 	parse_tcp_options(p->tcp_hdr, conn);
 
+	if (ntohl(p->tcp_hdr->seq) <= conn->last_recv_byte) {
+		/* this is a DUP, send an ACK and avoid further processing */
+
+		send_tcp_ack(p, conn);
+		return;
+	}
+
+	/*
+	 * TODO: check if something got missed and ask for retransmission
+	 */
+
 	if (len) {
 		/* TODO: if the PSH flag is not set, enqueue the incomplete
 		 * payload and wait for the other segments */
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
 
-		conn->last_ack += len;
+		conn->last_recv_byte += len;
 		send_tcp_ack(p, conn);
 
-		/* XXX: assume the HTTP header will fit in a single packet */
-		char *response = handle_http_request(payload, len);
+		/* XXX: here we are using the NIC payload string, maybe we
+		 * should copy the request to avoid the possibility that the
+		 * packet will be overwritten during the processing */
+		conn->http_response = handle_http_request(payload, len);
+		conn->http_state    = HTTP_HEADER;
 
-		send_tcp_data(p, conn, (uint8_t *) response, strlen(response));
-		free(response);
+	}
 
-	} else {
-		/* this is just an ack */
-		conn->cur_seq = ntohl(p->tcp_hdr->ack);
+	if (p->tcp_hdr->flags & TCP_FLAG_ACK) {
+
+		conn->last_ackd_byte   = ntohl(p->tcp_hdr->ack);
+		conn->effective_window = (p->tcp_hdr->window << conn->win_scale) -
+			(conn->last_sent_byte - conn->last_ackd_byte);
 	}
 }
 
@@ -543,7 +573,7 @@ remove_tcb(tcp_conn_t *conn) {
 
 void
 process_tcp_fin(packet_t *p, tcp_conn_t *conn) {
-	conn->last_ack++;
+	conn->last_recv_byte++;
 
 	send_tcp_fin_ack(p, conn);
 	remove_tcb(conn);
@@ -558,7 +588,6 @@ process_tcp(packet_t *p) {
 		/*
 		 * this is a known connection
 		 */
-
 		switch (conn->state) {
 			case ESTABLISHED:
 				if (p->tcp_hdr->flags & TCP_FLAG_FIN) {
@@ -597,8 +626,8 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 	pseudo_hdr.proto    = IP_PROTO_TCP;
 	pseudo_hdr.length   = htons(sizeof(tcp_hdr_t) + opts_len + data_len);
 
-	sum = partial_checksum(sum,  (const uint8_t *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
-	sum = partial_checksum(sum,  (const uint8_t *) tcp_hdr, sizeof(tcp_hdr_t));
+	sum = partial_checksum(sum, (const uint8_t *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
+	sum = partial_checksum(sum, (const uint8_t *) tcp_hdr, sizeof(tcp_hdr_t));
 
 
 	if (!data_len) {
@@ -609,5 +638,65 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 	}
 
 	return sum;
+}
+
+int
+tcp_conn_has_data_to_send(tcp_conn_t *conn) {
+	return conn->http_state != NO_DATA && conn->effective_window;
+}
+
+void
+tcp_conn_send_data(tcp_conn_t *conn, netmap_tx_ring_desc_t *tx_buf) {
+	char  *payload_buf;
+	uint16_t payload_len;
+	uint16_t file_read;
+
+	http_response_t *http_res;
+
+	/* tcp_conn_send_data is called only after tcp_conn_has_data_to_send, so
+	 * we know for sure that conn->http_state is either HTTP_HEADER or
+	 * FILE_TRASNFERING */
+
+	payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_buf->buf);
+	http_res    = conn->http_response;
+
+	if (conn->http_state == HTTP_HEADER) {
+		/*
+		 * XXX for now we can assume http header will fit in a single packet segment
+		 */
+
+		memcpy(payload_buf, http_res->header_buf, http_res->header_len);
+	}
+
+	if (http_res->file_len) {
+		file_read = read(http_res->file_fd, payload_buf + http_res->header_len,
+				MIN(ETH_MTU - sizeof(data_tcp_packet) - http_res->header_len, http_res->file_len - http_res->file_pos)); /* assuming we are on ethernet */
+	} else {
+		file_read = 0;
+	}
+
+	payload_len = file_read + http_res->header_len;
+
+	send_tcp_data(conn, (uint8_t *) tx_buf->buf, (uint8_t *) payload_buf, payload_len);
+	*tx_buf->len = sizeof(data_tcp_packet) + payload_len;
+
+	http_res->file_pos     += file_read;
+	conn->last_sent_byte   += payload_len;
+	conn->effective_window -= payload_len;
+
+	if (conn->http_state == HTTP_HEADER) {
+		http_res->header_len = 0;
+		conn->http_state     = FILE_TRANSFERING;
+	}
+
+	if (http_res->file_pos == http_res->file_len) {
+		conn->http_state = NO_DATA;
+
+		free(http_res->header_buf);
+		free(http_res->parser);
+
+		close(http_res->file_fd);
+
+	}
 }
 

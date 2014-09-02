@@ -1,6 +1,34 @@
+/*
+ * Copyright (C) 2014 jibi <jibi@paranoici.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
+#ifndef _ETH_EXOTCP_TCP_H
+#define _ETH_EXOTCP_TCP_H
+
+#include <stdio.h>
 #include <stdint.h>
 
+#include <eth/netmap.h>
 #include <eth/exotcp.h>
+#include <eth/http11.h>
+#include <glib.h>
+
+#define NETMAP_WITH_LIBS
+#include <net/netmap_user.h>
 
 typedef struct tcp_hdr_s {
 	uint16_t src_port;
@@ -91,12 +119,20 @@ typedef tcp_ts_opts_t tcp_fin_ack_opts_t;
 //#define TCP_OPT_SACK_LEN
 #define TCP_OPT_TS_LEN        10
 
+#define TCP_DATA_PACKET_PAYLOAD(x) (x + sizeof(eth_hdr_t) + sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t))
+
 void process_tcp(packet_t *p);
 
 typedef enum tcp_state_e {
 	SYN_RCVD,
 	ESTABLISHED
 } tcp_state_t;
+
+typedef enum tcp_http_state_e {
+	NO_DATA,
+	HTTP_HEADER,
+	FILE_TRANSFERING
+} tcp_http_state_t;
 
 /* assuming the server will use only one address and one port, it is ok
  * to use only src address and port as the TCP connection key */
@@ -108,10 +144,19 @@ typedef struct tcp_conn_key_s {
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
-	uint32_t last_ack;
-	uint32_t cur_seq;
+	uint8_t  src_mac[6];
+
+	uint32_t last_recv_byte;
+	uint32_t last_sent_byte;
+	uint32_t last_ackd_byte;
+
 	tcp_state_t state;
 	uint32_t last_clock;
+
+	int effective_window;
+
+	tcp_http_state_t http_state;
+	http_response_t *http_response;
 
 	uint16_t mss;
 	uint8_t  win_scale;
@@ -125,4 +170,11 @@ void init_tcp();
 #define TCP_WINDOW_SIZE 0x4000
 #define TCP_MSS         1460
 #define TCP_WIN_SCALE   0
+
+extern GHashTable *tcb_hash;
+
+int tcp_conn_has_data_to_send(tcp_conn_t *conn);
+void tcp_conn_send_data(tcp_conn_t *conn, netmap_tx_ring_desc_t *tx_buf);
+
+#endif
 
