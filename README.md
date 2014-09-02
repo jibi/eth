@@ -41,6 +41,6 @@ set interface up
 and start eth server with
 
 ```
-# ./eth $ifname $ifmac $ifip $port
+# ./eth --dev $ifname --mac $ifmac --ip $ifip --port $port
 ```
 

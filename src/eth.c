@@ -17,34 +17,92 @@
  */
 
 #include <stdio.h>
+#include <getopt.h>
 
 #include <eth/log.h>
 #include <eth/exotcp.h>
 #include <eth/exotcp/eth.h>
 #include <eth/netmap.h>
 
+void
+usage() {
+	printf("usage: eth [options]\n");
+	printf("options are:\n");
+	printf("  --dev [device]:    the device name\n");
+	printf("  --mac [mac addr]: the device mac address\n");
+	printf("  --ip [ip addr]:   the device ip address\n");
+	printf("  --port [port]:    the bind port\n");
+}
+
 int
 main(int argc, char *argv[]) {
-	char *ifname, *macaddr, *ipaddr;
+	char *dev, *mac, *ip;
 	uint16_t port;
 
-	if (argc < 5) {
-		fatal_tragedy(1, "Usage: %s ifname macaddr ipaddr port", argv[0]);
+	dev  = NULL;
+	mac  = NULL;
+	ip   = NULL;
+	port = 0;
+
+	while (1) {
+		int option_index = 0;
+		int c;
+
+		static struct option long_options[] = {
+			{"dev",  required_argument, 0, 'd'},
+			{"mac",  required_argument, 0, 'm'},
+			{"ip",   required_argument, 0, 'i'},
+			{"port", required_argument, 0, 'p'},
+			{0, 0, 0, 0}
+		};
+
+		c = getopt_long (argc, argv, "d:m:i:p:", long_options, &option_index);
+
+		if (c == -1) {
+			break;
+		}
+
+		switch (c) {
+			case 'd':
+				dev  = optarg;
+				break;
+			case 'm':
+				mac = optarg;
+				break;
+			case 'i':
+				ip  = optarg;
+				break;
+			case 'p':
+				port = atoi(optarg);
+				break;
+			case '?':
+				usage();
+				break;
+			default:
+				abort ();
+		}
+	}
+
+	if (!dev) {
+		fatal_tragedy(1, "you need to specify a device");
+	}
+
+	if (!mac) {
+		fatal_tragedy(1, "you need to specify the device's mac address");
+	}
+
+	if (!ip) {
+		fatal_tragedy(1, "you need to specify the device's ip address");
+	}
+
+	if (!port) {
+		fatal_tragedy(1, "you need to specify the listening port");
 	}
 
 	log_info("Hi, this is ETH!");
 
-	/*
-	 * TODO: improve args handling
-	 */
-
-	ifname  = argv[1];
-	macaddr = argv[2];
-	ipaddr  = argv[3];
-	port    = atoi(argv[4]);
-
-	init_netmap(ifname);
-	init_exotcp(macaddr, ipaddr, port);
+	init_netmap(dev);
+	init_exotcp(mac, ip, port);
 
 	netmap_recv_loop(process_eth);
 
