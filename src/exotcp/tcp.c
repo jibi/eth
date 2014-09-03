@@ -339,7 +339,7 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 void
 send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t *tx_desc;
+	netmap_tx_ring_desc_t tx_desc;
 	log_debug1("send tcp SYN+ACK packet");
 
 	/* XXX */
@@ -365,11 +365,9 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(syn_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	tx_desc = netmap_get_tx_ring_buffer();
-	memcpy(tx_desc->buf, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
-	*tx_desc->len = sizeof(syn_ack_tcp_packet);
-
-	free(tx_desc);
+	netmap_get_tx_ring_buffer(&tx_desc);
+	memcpy(tx_desc.buf, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
+	*tx_desc.len = sizeof(syn_ack_tcp_packet);
 
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 }
@@ -377,7 +375,7 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 void
 send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t *tx_desc;
+	netmap_tx_ring_desc_t tx_desc;
 	log_debug1("send tcp ACK packet");
 
 	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -396,11 +394,10 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	tx_desc = netmap_get_tx_ring_buffer();
-	memcpy(tx_desc->buf, &ack_tcp_packet, sizeof(ack_tcp_packet));
-	*tx_desc->len = sizeof(ack_tcp_packet);
+	netmap_get_tx_ring_buffer(&tx_desc);
+	memcpy(tx_desc.buf, &ack_tcp_packet, sizeof(ack_tcp_packet));
+	*tx_desc.len = sizeof(ack_tcp_packet);
 
-	free(tx_desc);
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 }
 
@@ -432,7 +429,7 @@ send_tcp_data(tcp_conn_t *conn, uint8_t *packet_buf, uint8_t *data, uint16_t len
 void
 send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t *tx_desc;
+	netmap_tx_ring_desc_t tx_desc;
 	log_debug1("send tcp FIN+ACK packet");
 
 	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -451,11 +448,9 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(fin_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	tx_desc = netmap_get_tx_ring_buffer();
-	memcpy(tx_desc->buf, &fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
-	*tx_desc->len = sizeof(fin_ack_tcp_packet);
-
-	free(tx_desc);
+	netmap_get_tx_ring_buffer(&tx_desc);
+	memcpy(tx_desc.buf, &fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
+	*tx_desc.len = sizeof(fin_ack_tcp_packet);
 
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 
