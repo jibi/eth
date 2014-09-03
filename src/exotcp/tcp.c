@@ -273,9 +273,8 @@ init_rst_tcp_packet() {
 	/*
 	 * tcp header
 	 */
-	rst_tcp_packet.tcp.src_port    = HTONS(listening_port);
 	rst_tcp_packet.tcp.res         = 0;
-	rst_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
+	rst_tcp_packet.tcp.window      = 0;
 	rst_tcp_packet.tcp.data_offset = sizeof(tcp_hdr_t) / 4;
 	rst_tcp_packet.tcp.flags       = TCP_FLAG_RST | TCP_FLAG_ACK;
 
@@ -494,13 +493,14 @@ send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 	netmap_tx_ring_desc_t tx_desc;
 	log_debug1("send tcp RST packet");
 
+	rst_tcp_packet.tcp.src_port = p->tcp_hdr->dst_port;
 	rst_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
 
 	if (conn) {
 		rst_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
 		rst_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
 	} else {
-		rst_tcp_packet.tcp.ack      = p->tcp_hdr->seq + 1;
+		rst_tcp_packet.tcp.ack      = htonl(ntohl(p->tcp_hdr->seq) + 1);
 		rst_tcp_packet.tcp.seq      = 0;
 	}
 	rst_tcp_packet.tcp.checksum = 0;
