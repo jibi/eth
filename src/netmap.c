@@ -57,6 +57,7 @@ netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 		struct netmap_ring *recv_ring, *send_ring;
 		unsigned int i, idx, len;
 		char *buf;
+		int someone_has_something_to_send = 1;
 
 		GHashTableIter iter;
 		gpointer key, value;
@@ -90,16 +91,21 @@ netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 		poll(&send_fds, 1, -1);
 		send_ring = NETMAP_TXRING(netmap->nifp, 0);
 
-		g_hash_table_iter_init (&iter, tcb_hash);
-		while (g_hash_table_iter_next (&iter, &key, &value)) {
-			tcp_conn_t *conn = value;
+		while (!nm_ring_empty(send_ring) && someone_has_something_to_send) {
+			g_hash_table_iter_init (&iter, tcb_hash);
+			someone_has_something_to_send = 0;
 
-			if (nm_ring_empty(send_ring)) {
-				break;
-			}
+			while (g_hash_table_iter_next (&iter, &key, &value)) {
+				tcp_conn_t *conn = value;
 
-			if (tcp_conn_has_data_to_send(conn)) {
-				tcp_conn_send_data(conn, netmap_get_tx_ring_buffer_no_poll());
+				if (nm_ring_empty(send_ring)) {
+					break;
+				}
+
+				if (tcp_conn_has_data_to_send(conn)) {
+					tcp_conn_send_data(conn, netmap_get_tx_ring_buffer_no_poll());
+					someone_has_something_to_send = 1;
+				}
 			}
 		}
 
