@@ -89,6 +89,12 @@ struct {
 	tcp_fin_ack_opts_t opts;
 } __attribute__ ((packed)) fin_ack_tcp_packet;
 
+struct {
+	eth_hdr_t          eth;
+	ip_hdr_t           ip;
+	tcp_hdr_t          tcp;
+} __attribute__ ((packed)) rst_tcp_packet;
+
 static uint16_t tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len, void *data, uint32_t data_len);
 #define tcp_syn_ack_checksum(ip_hdr, tcp_hdr, opts) \
 	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_syn_ack_opts_t), NULL, 0)
@@ -98,7 +104,8 @@ static uint16_t tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, u
 	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_data_opts_t), data, data_len)
 #define tcp_fin_ack_checksum(ip_hdr, tcp_hdr, opts) \
 	tcp_checksum(ip_hdr, tcp_hdr, opts, sizeof(tcp_fin_ack_opts_t), NULL, 0)
-
+#define tcp_rst_checksum(ip_hdr, tcp_hdr) \
+	tcp_checksum(ip_hdr, tcp_hdr, NULL, 0, NULL, 0)
 int
 get_tcp_clock(tcp_conn_t *conn) {
 	struct timeval tv;
@@ -262,6 +269,30 @@ init_fin_ack_tcp_packet() {
 }
 
 void
+init_rst_tcp_packet() {
+	/*
+	 * tcp header
+	 */
+	rst_tcp_packet.tcp.src_port    = HTONS(8080);
+	rst_tcp_packet.tcp.res         = 0;
+	rst_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
+	rst_tcp_packet.tcp.data_offset = sizeof(tcp_hdr_t) / 4;
+	rst_tcp_packet.tcp.flags       = TCP_FLAG_RST | TCP_FLAG_ACK;
+
+	/*
+	 * ip header
+	 */
+
+	init_ip_packet(&rst_tcp_packet.ip, 0, 0);
+
+	/*
+	 * eth header
+	 */
+	memcpy(rst_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
+	rst_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
+}
+
+void
 init_tcp() {
 	log_debug1("init_tcp");
 
@@ -269,6 +300,7 @@ init_tcp() {
 	init_ack_tcp_packet();
 	init_data_tcp_packet();
 	init_fin_ack_tcp_packet();
+	init_rst_tcp_packet();
 
 	tcb_hash = g_hash_table_new(hash_tcp_conn, cmp_tcp_conn);
 }
@@ -457,6 +489,39 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
+send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
+
+	netmap_tx_ring_desc_t tx_desc;
+	log_debug1("send tcp RST packet");
+
+	rst_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
+
+	if (conn) {
+		rst_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
+		rst_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
+	} else {
+		rst_tcp_packet.tcp.ack      = p->tcp_hdr->seq + 1;
+		rst_tcp_packet.tcp.seq      = 0;
+	}
+	rst_tcp_packet.tcp.checksum = 0;
+
+	memcpy(&rst_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
+	rst_tcp_packet.ip.check = 0;
+	rst_tcp_packet.ip.check = checksum((uint8_t *) &rst_tcp_packet.ip, sizeof(ip_hdr_t));
+
+	rst_tcp_packet.tcp.checksum = tcp_rst_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp);
+
+	memcpy(rst_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+
+	netmap_get_tx_ring_buffer(&tx_desc);
+	memcpy(tx_desc.buf, &rst_tcp_packet, sizeof(rst_tcp_packet));
+	*tx_desc.len = sizeof(rst_tcp_packet);
+
+	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+
+}
+
+void
 process_tcp_new_conn(packet_t *p) {
 	struct timeval tv;
 
@@ -605,7 +670,7 @@ process_tcp(packet_t *p) {
 		if (p->tcp_hdr->flags == TCP_FLAG_SYN) {
 			process_tcp_new_conn(p);
 		} else {
-			/* TODO: send RST */
+			send_tcp_rst(p, NULL);
 		}
 	}
 }
