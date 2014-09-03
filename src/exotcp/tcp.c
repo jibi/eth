@@ -174,7 +174,7 @@ init_ack_tcp_packet() {
 	/*
 	 * tcp header
 	 */
-	ack_tcp_packet.tcp.src_port    = HTONS(8080);
+	ack_tcp_packet.tcp.src_port    = HTONS(listening_port);
 	ack_tcp_packet.tcp.res         = 0;
 	ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
 	ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t)) / 4;
@@ -207,7 +207,7 @@ init_data_tcp_packet() {
 	/*
 	 * tcp header
 	 */
-	data_tcp_packet.tcp.src_port    = HTONS(8080);
+	data_tcp_packet.tcp.src_port    = HTONS(listening_port);
 	data_tcp_packet.tcp.res         = 0;
 	data_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
 	data_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t)) / 4;
@@ -240,7 +240,7 @@ init_fin_ack_tcp_packet() {
 	/*
 	 * tcp header
 	 */
-	fin_ack_tcp_packet.tcp.src_port    = HTONS(8080);
+	fin_ack_tcp_packet.tcp.src_port    = HTONS(listening_port);
 	fin_ack_tcp_packet.tcp.res         = 0;
 	fin_ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
 	fin_ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t)) / 4;
@@ -273,7 +273,7 @@ init_rst_tcp_packet() {
 	/*
 	 * tcp header
 	 */
-	rst_tcp_packet.tcp.src_port    = HTONS(8080);
+	rst_tcp_packet.tcp.src_port    = HTONS(listening_port);
 	rst_tcp_packet.tcp.res         = 0;
 	rst_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
 	rst_tcp_packet.tcp.data_offset = sizeof(tcp_hdr_t) / 4;
