@@ -688,14 +688,8 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 
 	sum = partial_checksum(sum, (const uint8_t *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
 	sum = partial_checksum(sum, (const uint8_t *) tcp_hdr, sizeof(tcp_hdr_t));
-
-
-	if (!data_len) {
-		sum = finalize_checksum(sum, (const uint8_t *) opts, opts_len);
-	} else {
-		sum = partial_checksum(sum, opts, opts_len);
-		sum = finalize_checksum(sum, data, data_len);
-	}
+	sum = partial_checksum(sum, opts, opts_len);
+	sum = finalize_checksum(sum, data, data_len);
 
 	return sum;
 }

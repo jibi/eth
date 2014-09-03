@@ -30,14 +30,16 @@ uint32_t
 partial_checksum(uint32_t sum, const uint8_t *buf, uint32_t size) {
 	int i;
 
-	for (i = 0; i < size - 1; i += 2) {
-		uint16_t word16 = *(unsigned short *) &buf[i];
-		sum += word16;
-	}
+	if (size) {
+		for (i = 0; i < size - 1; i += 2) {
+			uint16_t word16 = *(unsigned short *) &buf[i];
+			sum += word16;
+		}
 
-	if (size & 1) {
-		uint16_t word16 = (uint8_t) buf[i];
-		sum += word16;
+		if (size & 1) {
+			uint16_t word16 = (uint8_t) buf[i];
+			sum += word16;
+		}
 	}
 
 	return sum;
