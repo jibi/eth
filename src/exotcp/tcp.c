@@ -525,7 +525,10 @@ void
 process_tcp_new_conn(packet_t *p) {
 	struct timeval tv;
 
-	/* check if port is correct */
+	if (ntohs(p->tcp_hdr->dst_port) != listening_port) {
+		send_tcp_rst(p, NULL);
+		return;
+	}
 
 	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
