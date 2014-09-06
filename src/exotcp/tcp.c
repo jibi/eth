@@ -333,7 +333,7 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 				if (conn->state == SYN_RCVD) {
 					/* win scaling is only valid during the
 					 * 3wh*/
-					conn->win_scale = (short) *(cur_opt + 2);
+					conn->win_scale = *(cur_opt + 2);
 				}
 
 				cur_opt += 3;
@@ -622,7 +622,7 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	if (p->tcp_hdr->flags & TCP_FLAG_ACK) {
 
 		conn->last_ackd_byte   = ntohl(p->tcp_hdr->ack);
-		conn->effective_window = (p->tcp_hdr->window << conn->win_scale) -
+		conn->effective_window = (ntohs(p->tcp_hdr->window) << conn->win_scale) -
 			(conn->last_sent_byte - conn->last_ackd_byte);
 	}
 }
