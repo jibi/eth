@@ -26,14 +26,14 @@ typedef struct netmap_tx_ring_desc_s {
 	char *buf;
 	int  i;
 	uint16_t  *len;
-} netmap_tx_ring_desc_t;
+} nm_tx_desc_t;
 
 extern struct nm_desc *netmap;
 
 void init_netmap(char *ifname);
-void netmap_recv_loop(void (*process_packet)(char *, size_t len));
-void netmap_get_tx_ring_buffer_no_poll(netmap_tx_ring_desc_t *tx_desc);
-void netmap_get_tx_ring_buffer(netmap_tx_ring_desc_t *tx_desc);
+void nm_loop(void (*process_packet)(char *, size_t len));
+void nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc);
+void nm_get_tx_buff(nm_tx_desc_t *tx_desc);
 
 #endif
 

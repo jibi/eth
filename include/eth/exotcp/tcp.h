@@ -174,7 +174,7 @@ void init_tcp();
 extern GHashTable *tcb_hash;
 
 int tcp_conn_has_data_to_send(tcp_conn_t *conn);
-void tcp_conn_send_data(tcp_conn_t *conn, netmap_tx_ring_desc_t *tx_buf);
+void tcp_conn_send_data(tcp_conn_t *conn, nm_tx_desc_t *tx_buf);
 
 #endif
 

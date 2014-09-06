@@ -104,7 +104,7 @@ main(int argc, char *argv[]) {
 	init_netmap(dev);
 	init_exotcp(mac, ip, port);
 
-	netmap_recv_loop(process_eth);
+	nm_loop(process_eth);
 
 	return 0;
 }

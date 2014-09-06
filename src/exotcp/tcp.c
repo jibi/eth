@@ -370,7 +370,7 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 void
 send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t tx_desc;
+	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp SYN+ACK packet");
 
 	/* XXX */
@@ -396,7 +396,7 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(syn_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	netmap_get_tx_ring_buffer(&tx_desc);
+	nm_get_tx_buff(&tx_desc);
 	memcpy(tx_desc.buf, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
 	*tx_desc.len = sizeof(syn_ack_tcp_packet);
 
@@ -406,7 +406,7 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 void
 send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t tx_desc;
+	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp ACK packet");
 
 	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -425,7 +425,7 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	netmap_get_tx_ring_buffer(&tx_desc);
+	nm_get_tx_buff(&tx_desc);
 	memcpy(tx_desc.buf, &ack_tcp_packet, sizeof(ack_tcp_packet));
 	*tx_desc.len = sizeof(ack_tcp_packet);
 
@@ -460,7 +460,7 @@ send_tcp_data(tcp_conn_t *conn, uint8_t *packet_buf, uint8_t *data, uint16_t len
 void
 send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t tx_desc;
+	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp FIN+ACK packet");
 
 	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -479,7 +479,7 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(fin_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	netmap_get_tx_ring_buffer(&tx_desc);
+	nm_get_tx_buff(&tx_desc);
 	memcpy(tx_desc.buf, &fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
 	*tx_desc.len = sizeof(fin_ack_tcp_packet);
 
@@ -490,7 +490,7 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 void
 send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 
-	netmap_tx_ring_desc_t tx_desc;
+	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp RST packet");
 
 	rst_tcp_packet.tcp.src_port = p->tcp_hdr->dst_port;
@@ -513,7 +513,7 @@ send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 
 	memcpy(rst_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 
-	netmap_get_tx_ring_buffer(&tx_desc);
+	nm_get_tx_buff(&tx_desc);
 	memcpy(tx_desc.buf, &rst_tcp_packet, sizeof(rst_tcp_packet));
 	*tx_desc.len = sizeof(rst_tcp_packet);
 
@@ -703,7 +703,7 @@ tcp_conn_has_data_to_send(tcp_conn_t *conn) {
 }
 
 void
-tcp_conn_send_data(tcp_conn_t *conn, netmap_tx_ring_desc_t *tx_buf) {
+tcp_conn_send_data(tcp_conn_t *conn, nm_tx_desc_t *tx_buf) {
 	char  *payload_buf;
 	uint16_t payload_len;
 	uint16_t file_read;

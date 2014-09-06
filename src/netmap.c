@@ -51,7 +51,7 @@ init_netmap(char *ifname) {
 }
 
 void
-netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
+nm_loop(void (*process_packet)(char *, size_t len)) {
 	while (1) {
 		struct pollfd recv_fds, send_fds;
 		struct netmap_ring *recv_ring, *send_ring;
@@ -96,7 +96,7 @@ netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 			someone_has_something_to_send = 0;
 
 			while (g_hash_table_iter_next (&iter, &key, &value)) {
-				netmap_tx_ring_desc_t tx_desc;
+				nm_tx_desc_t tx_desc;
 				tcp_conn_t *conn = value;
 
 				if (nm_ring_empty(send_ring)) {
@@ -104,7 +104,7 @@ netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 				}
 
 				if (tcp_conn_has_data_to_send(conn)) {
-					netmap_get_tx_ring_buffer_no_poll(&tx_desc);
+					nm_get_tx_buff_no_poll(&tx_desc);
 					tcp_conn_send_data(conn, &tx_desc);
 					someone_has_something_to_send = 1;
 				}
@@ -116,7 +116,7 @@ netmap_recv_loop(void (*process_packet)(char *, size_t len)) {
 }
 
 void
-netmap_get_tx_ring_buffer_no_poll(netmap_tx_ring_desc_t *tx_desc) {
+nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
 	struct netmap_ring *ring;
 	int i, idx;
 
@@ -131,7 +131,7 @@ netmap_get_tx_ring_buffer_no_poll(netmap_tx_ring_desc_t *tx_desc) {
 }
 
 void
-netmap_get_tx_ring_buffer(netmap_tx_ring_desc_t *tx_desc) {
+nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 	struct pollfd fds;
 
 	fds.fd     = NETMAP_FD(netmap);
@@ -139,6 +139,6 @@ netmap_get_tx_ring_buffer(netmap_tx_ring_desc_t *tx_desc) {
 
 	poll(&fds, 1, -1);
 
-	netmap_get_tx_ring_buffer_no_poll(tx_desc);
+	nm_get_tx_buff_no_poll(tx_desc);
 }
 
