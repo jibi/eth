@@ -221,5 +221,3 @@ eth_parser_is_finished(eth_parser_t *parser) {
 	return parser->cs >= eth_parser_first_final;
 }
 
-/* shut clang */
-#pragma unused(eth_parser_en_main)
