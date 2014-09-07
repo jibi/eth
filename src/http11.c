@@ -139,6 +139,8 @@ test_response(http_response_t *response) {
 		"\r\n%s", (int) strlen(body), body);
 
 	response->header_len = strlen(response->header_buf);
+	response->header_pos = 0;
+
 	response->file_len   = 0;
 	response->file_pos   = 0;
 
@@ -156,6 +158,8 @@ build_404(http_response_t *response) {
 		"\r\n%s", (int) strlen(body), body);
 
 	response->header_len = strlen(response->header_buf);
+	response->header_pos = 0;
+
 	response->file_len   = 0;
 	response->file_pos   = 0;
 }
@@ -184,6 +188,8 @@ eth_http_response(http_response_t *response) {
 		"\r\n", (int) stat.st_size);
 
 	response->header_len = strlen(response->header_buf);
+	response->header_pos = 0;
+
 	response->file_len   = stat.st_size;
 	response->file_pos   = 0;
 }
@@ -202,5 +208,16 @@ handle_http_request(char *request, size_t len) {
 	}
 
 	return response;
+}
+
+int
+http_res_has_header_to_send(http_response_t *res) {
+	return res->header_len - res->header_pos;
+
+}
+
+int
+http_res_has_file_to_send(http_response_t *res) {
+	return res->file_len - res->file_pos;
 }
 

@@ -15,6 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+#define _BSD_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,7 @@
 #include <netinet/ether.h>
 
 #include <sys/time.h>
+#include <sys/uio.h>
 
 #include <eth/log.h>
 
@@ -433,7 +435,7 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
-send_tcp_data(tcp_conn_t *conn, uint8_t *packet_buf, uint8_t *data, uint16_t len) {
+send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len) {
 
 	log_debug1("send tcp data packet");
 
@@ -546,9 +548,9 @@ process_tcp_new_conn(packet_t *p) {
 	conn->last_clock     = tv.tv_sec / 1000 + tv.tv_usec * 1000;
 
 	conn->effective_window = 0;
-	conn->http_state       = NO_DATA;
-
 	conn->win_scale        = 0;
+
+	conn->http_response    = NULL;
 
 	log_debug1("recv tcp SYN packet");
 
@@ -615,7 +617,6 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 		 * should copy the request to avoid the possibility that the
 		 * packet will be overwritten during the processing */
 		conn->http_response = handle_http_request(payload, len);
-		conn->http_state    = HTTP_HEADER;
 
 	}
 
@@ -698,62 +699,167 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 }
 
 int
+tcp_conn_has_open_window(tcp_conn_t *conn) {
+	return conn->effective_window > ETH_MTU;
+}
+
+int
 tcp_conn_has_data_to_send(tcp_conn_t *conn) {
-	return conn->http_state != NO_DATA && conn->effective_window;
+	return conn->http_response && tcp_conn_has_open_window(conn);
+}
+
+#define MAX_SLOT 100 /* XXX: find a good value for this */
+
+typedef struct tcp_send_data_ctx_s {
+	nm_tx_desc_t http_hdr_last_tx_desc;
+	uint16_t     slot_count;
+	uint16_t     last_http_hdr_pl_len;
+
+} tcp_send_data_ctx_t;
+
+void
+tcp_conn_send_data_http_hdr(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
+	http_response_t *res;
+	nm_tx_desc_t    tx_desc;
+
+	char    *payload_buf;
+	uint16_t payload_len = 0;
+
+	res = conn->http_response;
+
+	while (http_res_has_header_to_send(res) && tcp_conn_has_open_window(conn) && ctx->slot_count < MAX_SLOT) {
+		if (! nm_get_tx_buff_no_poll(&tx_desc)) {
+			break;
+		}
+
+		payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc.buf);
+		payload_len = MIN(ETH_MTU - sizeof(data_tcp_packet), res->header_len - res->header_pos);
+
+		memcpy(payload_buf, res->header_buf + res->header_pos, payload_len);
+
+		*tx_desc.len     = sizeof(data_tcp_packet) + payload_len;
+		res->header_pos += payload_len;
+
+		send_tcp_data(conn, tx_desc.buf, payload_buf, payload_len);
+
+		conn->last_sent_byte   += payload_len;
+		conn->effective_window -= payload_len;
+
+		ctx->slot_count++;
+	}
+
+	ctx->http_hdr_last_tx_desc.buf = tx_desc.buf;
+	ctx->http_hdr_last_tx_desc.len = tx_desc.len;
+
+	ctx->last_http_hdr_pl_len      = payload_len;
 }
 
 void
-tcp_conn_send_data(tcp_conn_t *conn, nm_tx_desc_t *tx_buf) {
-	char  *payload_buf;
+tcp_conn_send_data_http_file(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
+	http_response_t *res;
+	nm_tx_desc_t    tx_desc[MAX_SLOT];
+	struct iovec    iov[MAX_SLOT];
+	int             iovcnt;
+
+	size_t   start_pos;
+	int      http_hdr_sent;
+
+	char    *payload_buf;
 	uint16_t payload_len;
-	uint16_t file_read;
 
-	http_response_t *http_res;
+	res                  = conn->http_response;
+	iovcnt               = 0;
+	start_pos            = res->file_pos;
+	http_hdr_sent        = 0;
 
-	/* tcp_conn_send_data is called only after tcp_conn_has_data_to_send, so
-	 * we know for sure that conn->http_state is either HTTP_HEADER or
-	 * FILE_TRASNFERING */
+	/* if header fill up the packet, zero out last_http_hdr_pl_len */
+	if (ctx->last_http_hdr_pl_len == ETH_MTU - sizeof(data_tcp_packet)) {
+		ctx->last_http_hdr_pl_len = 0;
+	}
 
-	payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_buf->buf);
-	http_res    = conn->http_response;
+	while (http_res_has_file_to_send(res) && tcp_conn_has_open_window(conn) && ctx->slot_count < MAX_SLOT) {
+		if ((!http_hdr_sent) && ctx->last_http_hdr_pl_len) {
+			/*
+			 * here we are modifying the last packet, the one partially
+			 * written with the last part of the HTTP header.
+			 */
+			tx_desc[0].buf = ctx->http_hdr_last_tx_desc.buf;
+			tx_desc[0].len = ctx->http_hdr_last_tx_desc.len;
 
-	if (conn->http_state == HTTP_HEADER) {
+			conn->last_sent_byte   -= ctx->last_http_hdr_pl_len;
+			conn->effective_window += ctx->last_http_hdr_pl_len;
+
+			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc->buf) + ctx->last_http_hdr_pl_len;
+			payload_len = MIN(
+				ETH_MTU - (sizeof(data_tcp_packet) + ctx->last_http_hdr_pl_len),
+				res->file_len - res->file_pos
+			);
+
+			*tx_desc->len = sizeof(data_tcp_packet) + ctx->last_http_hdr_pl_len + payload_len;
+
+			conn->effective_window -= ctx->last_http_hdr_pl_len + payload_len;
+			http_hdr_sent = 1;
+
+		} else {
+			if (! nm_get_tx_buff_no_poll(&tx_desc[iovcnt])) {
+				break;
+			}
+
+			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf);
+			payload_len = MIN(
+				ETH_MTU - sizeof(data_tcp_packet),
+				res->file_len - res->file_pos
+			);
+
+			*tx_desc[iovcnt].len = sizeof(data_tcp_packet) + payload_len;
+			conn->effective_window -= payload_len;
+		}
+
+		iov[iovcnt].iov_base = payload_buf;
+		iov[iovcnt].iov_len  = payload_len;
+
+		res->file_pos       += payload_len;
+
+		ctx->slot_count++;
+		iovcnt++;
+	}
+
+	if (iovcnt > 0) {
+		preadv(res->file_fd, iov, iovcnt, start_pos);
+
 		/*
-		 * XXX for now we can assume http header will fit in a single packet segment
+		 * fix the first ring: we must consider the HTTP header
 		 */
+		iov[0].iov_base = (char *) iov[0].iov_base - ctx->last_http_hdr_pl_len;
+		iov[0].iov_len  = iov[0].iov_len + ctx->last_http_hdr_pl_len;
 
-		memcpy(payload_buf, http_res->header_buf, http_res->header_len);
+		for (int i = 0; i < iovcnt; i++) {
+			send_tcp_data(conn, tx_desc[i].buf, iov[i].iov_base, iov[i].iov_len);
+			conn->last_sent_byte += iov[i].iov_len;
+		}
 	}
+}
 
-	if (http_res->file_len) {
-		file_read = read(http_res->file_fd, payload_buf + http_res->header_len,
-				MIN(ETH_MTU - sizeof(data_tcp_packet) - http_res->header_len, http_res->file_len - http_res->file_pos)); /* assuming we are on ethernet */
-	} else {
-		file_read = 0;
-	}
+void
+tcp_conn_send_data(tcp_conn_t *conn) {
+	tcp_send_data_ctx_t ctx;
+	http_response_t *res;
 
-	payload_len = file_read + http_res->header_len;
+	ctx.slot_count           = 0;
+	ctx.last_http_hdr_pl_len = 0;
 
-	send_tcp_data(conn, (uint8_t *) tx_buf->buf, (uint8_t *) payload_buf, payload_len);
-	*tx_buf->len = sizeof(data_tcp_packet) + payload_len;
+	res = conn->http_response;
 
-	http_res->file_pos     += file_read;
-	conn->last_sent_byte   += payload_len;
-	conn->effective_window -= payload_len;
+	tcp_conn_send_data_http_hdr(conn, &ctx);
+	tcp_conn_send_data_http_file(conn, &ctx);
 
-	if (conn->http_state == HTTP_HEADER) {
-		http_res->header_len = 0;
-		conn->http_state     = FILE_TRANSFERING;
-	}
+	if (! http_res_has_file_to_send(res)) {
+		free(res->header_buf);
+		free(res->parser);
+		close(res->file_fd);
+		free(res);
 
-	if (http_res->file_pos == http_res->file_len) {
-		conn->http_state = NO_DATA;
-
-		free(http_res->header_buf);
-		free(http_res->parser);
-
-		close(http_res->file_fd);
-
+		conn->http_response = NULL;
 	}
 }
 

@@ -128,12 +128,6 @@ typedef enum tcp_state_e {
 	ESTABLISHED
 } tcp_state_t;
 
-typedef enum tcp_http_state_e {
-	NO_DATA,
-	HTTP_HEADER,
-	FILE_TRANSFERING
-} tcp_http_state_t;
-
 /* assuming the server will use only one address and one port, it is ok
  * to use only src address and port as the TCP connection key */
 
@@ -155,14 +149,13 @@ typedef struct tcp_conn_s {
 
 	int effective_window;
 
-	tcp_http_state_t http_state;
-	http_response_t *http_response;
-
 	uint16_t mss;
 	uint8_t  win_scale;
 	uint8_t  sack_perm;
 	uint32_t ts;
 	uint32_t echo_ts;
+
+	http_response_t *http_response;
 } tcp_conn_t;
 
 void init_tcp();
@@ -174,7 +167,7 @@ void init_tcp();
 extern GHashTable *tcb_hash;
 
 int tcp_conn_has_data_to_send(tcp_conn_t *conn);
-void tcp_conn_send_data(tcp_conn_t *conn, nm_tx_desc_t *tx_buf);
+void tcp_conn_send_data(tcp_conn_t *conn);
 
 #endif
 

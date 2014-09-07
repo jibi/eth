@@ -38,7 +38,7 @@ typedef struct eth_hdr_s {
 #define ETH_TYPE_IPV4 HTONS(0x0800)
 #define ETH_TYPE_ARP  HTONS(0x0806)
 
-#define ETH_MTU (1500 - sizeof(eth_hdr_t))
+#define ETH_MTU (1500 + sizeof(eth_hdr_t))
 
 void process_eth(char *packet_buf, size_t len);
 void dump_eth_hdr(eth_hdr_t *hdr);

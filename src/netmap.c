@@ -96,7 +96,6 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 			someone_has_something_to_send = 0;
 
 			while (g_hash_table_iter_next (&iter, &key, &value)) {
-				nm_tx_desc_t tx_desc;
 				tcp_conn_t *conn = value;
 
 				if (nm_ring_empty(send_ring)) {
@@ -104,8 +103,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 				}
 
 				if (tcp_conn_has_data_to_send(conn)) {
-					nm_get_tx_buff_no_poll(&tx_desc);
-					tcp_conn_send_data(conn, &tx_desc);
+					tcp_conn_send_data(conn);
 					someone_has_something_to_send = 1;
 				}
 			}
@@ -115,12 +113,17 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 	}
 }
 
-void
+int
 nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
 	struct netmap_ring *ring;
 	int i, idx;
 
 	ring = NETMAP_TXRING(netmap->nifp, 0);
+
+	if (nm_ring_empty(ring)) {
+		return 0;
+	}
+
 	i    = ring->cur;
 	idx  = ring->slot[i].buf_idx;
 
@@ -128,9 +131,11 @@ nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
 	tx_desc->len = &ring->slot[i].len;
 
 	ring->head = ring->cur = nm_ring_next(ring, i);
+
+	return 1;
 }
 
-void
+int
 nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 	struct pollfd fds;
 
@@ -139,6 +144,6 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 
 	poll(&fds, 1, -1);
 
-	nm_get_tx_buff_no_poll(tx_desc);
+	return nm_get_tx_buff_no_poll(tx_desc);
 }
 

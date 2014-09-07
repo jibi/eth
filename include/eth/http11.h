@@ -61,6 +61,7 @@ typedef struct http_response_s {
 	eth_parser_t *parser;
 
 	char   *header_buf;
+	size_t header_pos;
 	size_t header_len;
 
 	int    file_fd;
@@ -79,6 +80,9 @@ int eth_parser_is_finished(eth_parser_t *parser);
 eth_parser_t *new_eth_parser();
 void delete_eth_parser_t(eth_parser_t *p);
 http_response_t *handle_http_request(char *request, size_t len);
+
+int http_res_has_header_to_send(http_response_t *res);
+int http_res_has_file_to_send(http_response_t *res);
 
 #endif
 

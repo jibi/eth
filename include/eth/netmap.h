@@ -32,8 +32,8 @@ extern struct nm_desc *netmap;
 
 void init_netmap(char *ifname);
 void nm_loop(void (*process_packet)(char *, size_t len));
-void nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc);
-void nm_get_tx_buff(nm_tx_desc_t *tx_desc);
+int nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc);
+int nm_get_tx_buff(nm_tx_desc_t *tx_desc);
 
 #endif
 
