@@ -57,7 +57,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 		struct netmap_ring *recv_ring, *send_ring;
 		unsigned int i, idx, len;
 		char *buf;
-		int someone_has_something_to_send = 1;
+		int has_data_to_send = 1;
 
 		GHashTableIter iter;
 		gpointer key, value;
@@ -65,11 +65,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 		recv_fds.fd     = NETMAP_FD(netmap);
 		recv_fds.events = POLLIN;
 
-		/*
-		 * TODO: set timeout to -1 or 0 based on the fact that we have
-		 * something or not to send
-		 */
-		poll(&recv_fds, 1, -1);
+		poll(&recv_fds, 1, has_data_to_send ? -1 : 0);
 
 		recv_ring = NETMAP_RXRING(netmap->nifp, 0);
 
@@ -91,9 +87,9 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 		poll(&send_fds, 1, -1);
 		send_ring = NETMAP_TXRING(netmap->nifp, 0);
 
-		while (!nm_ring_empty(send_ring) && someone_has_something_to_send) {
+		while (!nm_ring_empty(send_ring) && has_data_to_send) {
 			g_hash_table_iter_init (&iter, tcb_hash);
-			someone_has_something_to_send = 0;
+			has_data_to_send = 0;
 
 			while (g_hash_table_iter_next (&iter, &key, &value)) {
 				tcp_conn_t *conn = value;
@@ -104,7 +100,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 
 				if (tcp_conn_has_data_to_send(conn)) {
 					tcp_conn_send_data(conn);
-					someone_has_something_to_send = 1;
+					has_data_to_send = 1;
 				}
 			}
 		}
