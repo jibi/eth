@@ -26,6 +26,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
+#include <eth.h>
 #include <eth/log.h>
 #include <eth/exotcp.h>
 #include <eth/exotcp/tcp.h>
@@ -57,7 +58,8 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 		struct netmap_ring *recv_ring, *send_ring;
 		unsigned int i, idx, len;
 		char *buf;
-		int has_data_to_send = 1;
+		bool has_data_to_send = true;
+		bool resume_loop = false;
 
 		GHashTableIter iter;
 		gpointer key, value;
@@ -88,19 +90,24 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 		send_ring = NETMAP_TXRING(netmap->nifp, 0);
 
 		while (!nm_ring_empty(send_ring) && has_data_to_send) {
-			g_hash_table_iter_init (&iter, tcb_hash);
-			has_data_to_send = 0;
+			if (! resume_loop) {
+				g_hash_table_iter_init (&iter, tcb_hash);
+			}
+
+			resume_loop      = false;
+			has_data_to_send = false;
 
 			while (g_hash_table_iter_next (&iter, &key, &value)) {
 				tcp_conn_t *conn = value;
 
 				if (nm_ring_empty(send_ring)) {
+					resume_loop = true;
 					break;
 				}
 
 				if (tcp_conn_has_data_to_send(conn)) {
 					tcp_conn_send_data(conn);
-					has_data_to_send = 1;
+					has_data_to_send = true;
 				}
 			}
 		}

@@ -24,5 +24,10 @@
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
+typedef enum bool_e {
+	false,
+	true
+} bool;
+
 #endif
 
