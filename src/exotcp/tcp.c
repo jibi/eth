@@ -520,6 +520,16 @@ process_tcp_fin(packet_t *p, tcp_conn_t *conn) {
 	conn->last_recv_byte++;
 
 	send_tcp_fin_ack(conn);
+
+	conn->state = FIN_SENT;
+}
+
+void
+process_closed_ack(packet_t *p, tcp_conn_t *conn) {
+	log_debug1("connection closed");
+
+	/* TODO: check this is an ack to our FIN packet */
+
 	remove_tcb(conn);
 }
 
@@ -548,6 +558,10 @@ process_tcp(packet_t *p) {
 				 * we would expect an ACK packet that concludes the 3WH
 				 */
 				process_3wh_ack(p, conn);
+				break;
+
+			case FIN_SENT:
+				process_closed_ack(p, conn);
 				break;
 		}
 	} else {

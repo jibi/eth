@@ -125,7 +125,8 @@ void process_tcp(packet_t *p);
 
 typedef enum tcp_state_e {
 	SYN_RCVD,
-	ESTABLISHED
+	ESTABLISHED,
+	FIN_SENT
 } tcp_state_t;
 
 /* assuming the server will use only one address and one port, it is ok
