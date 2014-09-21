@@ -289,17 +289,11 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
 	syn_ack_tcp_packet.tcp.dst_port         = p->tcp_hdr->src_port;
-
-	/*
-	 * with a SYN packet we need to ACK one byte.
-	 */
 	syn_ack_tcp_packet.tcp.ack              = htonl(conn->last_recv_byte + 1);
 	syn_ack_tcp_packet.tcp.seq              = htonl(conn->last_sent_byte);
-	syn_ack_tcp_packet.tcp.checksum         = 0;
 
 	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
-	syn_ack_tcp_packet.ip.check = 0;
-	syn_ack_tcp_packet.ip.check = checksum((uint8_t *) &syn_ack_tcp_packet.ip, sizeof(ip_hdr_t));
+	syn_ack_tcp_packet.ip.check = ip_checksum(&syn_ack_tcp_packet.ip);
 
 	syn_ack_tcp_packet.tcp.checksum = tcp_syn_ack_checksum(&syn_ack_tcp_packet.ip, &syn_ack_tcp_packet.tcp, &syn_ack_tcp_packet.opts);
 
@@ -324,11 +318,9 @@ send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
 	ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
 	ack_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
 	ack_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
-	ack_tcp_packet.tcp.checksum = 0;
 
 	memcpy(&ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
-	ack_tcp_packet.ip.check = 0;
-	ack_tcp_packet.ip.check = checksum((uint8_t *) &ack_tcp_packet.ip, sizeof(ip_hdr_t));
+	ack_tcp_packet.ip.check = ip_checksum(&ack_tcp_packet.ip);
 
 	ack_tcp_packet.tcp.checksum = tcp_ack_checksum(&ack_tcp_packet.ip, &ack_tcp_packet.tcp, &ack_tcp_packet.opts);
 
@@ -352,12 +344,10 @@ send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len) {
 	data_tcp_packet.tcp.dst_port = conn->key->src_port;
 	data_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
 	data_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
-	data_tcp_packet.tcp.checksum = 0;
 
 	memcpy(&data_tcp_packet.ip.dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
 	data_tcp_packet.ip.total_len  = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
-	data_tcp_packet.ip.check      = 0;
-	data_tcp_packet.ip.check      = checksum((uint8_t *) &data_tcp_packet.ip, sizeof(ip_hdr_t));
+	data_tcp_packet.ip.check      = ip_checksum(&data_tcp_packet.ip);
 
 	data_tcp_packet.tcp.checksum = tcp_data_checksum(&data_tcp_packet.ip, &data_tcp_packet.tcp, &data_tcp_packet.opts, data, len);
 
@@ -378,11 +368,9 @@ send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
 	fin_ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
 	fin_ack_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
 	fin_ack_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
-	fin_ack_tcp_packet.tcp.checksum = 0;
 
 	memcpy(&fin_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
-	fin_ack_tcp_packet.ip.check = 0;
-	fin_ack_tcp_packet.ip.check = checksum((uint8_t *) &fin_ack_tcp_packet.ip, sizeof(ip_hdr_t));
+	fin_ack_tcp_packet.ip.check = ip_checksum(&fin_ack_tcp_packet.ip);
 
 	fin_ack_tcp_packet.tcp.checksum = tcp_fin_ack_checksum(&fin_ack_tcp_packet.ip, &fin_ack_tcp_packet.tcp, &fin_ack_tcp_packet.opts);
 
@@ -412,11 +400,9 @@ send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 		rst_tcp_packet.tcp.ack      = htonl(ntohl(p->tcp_hdr->seq) + 1);
 		rst_tcp_packet.tcp.seq      = 0;
 	}
-	rst_tcp_packet.tcp.checksum = 0;
 
 	memcpy(&rst_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
-	rst_tcp_packet.ip.check = 0;
-	rst_tcp_packet.ip.check = checksum((uint8_t *) &rst_tcp_packet.ip, sizeof(ip_hdr_t));
+	rst_tcp_packet.ip.check = ip_checksum(&rst_tcp_packet.ip);
 
 	rst_tcp_packet.tcp.checksum = tcp_rst_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp);
 
@@ -488,6 +474,7 @@ process_3wh_ack(packet_t *p, tcp_conn_t *conn) {
 	/* TODO: check ack number */
 	/* TODO: calc RTT */
 
+	// with a SYN packet we need to ACK one byte.
 	conn->last_sent_byte++;
 
 	log_debug1("new connection established");
@@ -596,6 +583,8 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 	pseudo_hdr.reserved = 0;
 	pseudo_hdr.proto    = IP_PROTO_TCP;
 	pseudo_hdr.length   = htons(sizeof(tcp_hdr_t) + opts_len + data_len);
+
+	tcp_hdr->checksum   = 0;
 
 	sum = partial_checksum(sum, (const uint8_t *) &pseudo_hdr, sizeof(tcp_pseudo_header_t));
 	sum = partial_checksum(sum, (const uint8_t *) tcp_hdr, sizeof(tcp_hdr_t));

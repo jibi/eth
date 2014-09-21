@@ -54,3 +54,9 @@ process_ip(packet_t *packet) {
 	}
 }
 
+uint16_t
+ip_checksum(ip_hdr_t *ip_hdr) {
+	ip_hdr->check = 0;
+
+	return checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
+}
