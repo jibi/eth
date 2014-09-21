@@ -79,8 +79,6 @@ process_arp(packet_t *p) {
 	memcpy(prebuild_arp_packet.arp.target_hw_addr, p->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
 	memcpy(prebuild_arp_packet.arp.target_proto_addr, p->arp_hdr->sender_proto_addr, sizeof(struct in_addr));
 
-	nm_inject(netmap, &prebuild_arp_packet, sizeof(eth_hdr_t) + sizeof(arp_hdr_t));
-
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	nm_send_packet(&prebuild_arp_packet, sizeof(prebuild_arp_packet));
 }
 
