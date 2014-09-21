@@ -125,171 +125,79 @@ get_tcp_clock(tcp_conn_t *conn) {
 }
 
 void
+init_tcp_packet_header(tcp_hdr_t *hdr, uint8_t opts_len, uint8_t flags) {
+	hdr->src_port = HTONS(listening_port);
+	hdr->res         = 0;
+	hdr->window      = HTONS(TCP_WINDOW_SIZE); /* TODO: comply to TCP window size */
+	hdr->data_offset = (sizeof(tcp_hdr_t) + opts_len) / 4;
+	hdr->flags       = flags;
+}
+
+void
 init_syn_ack_tcp_packet() {
-	/*
-	 * tcp header
-	 */
-
-	syn_ack_tcp_packet.tcp.src_port    = HTONS(listening_port);
-	syn_ack_tcp_packet.tcp.res         = 0;
-
-	/* TODO: comply to TCP window size */
-	syn_ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE);
-	syn_ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t)) / 4;
-	syn_ack_tcp_packet.tcp.flags       = (TCP_FLAG_SYN | TCP_FLAG_ACK);
-
-	/*
-	 * tcp opts
-	 */
 
 	/* TODO: negotiate MSS */
-	syn_ack_tcp_packet.opts.mss.code       = TCP_OPT_MSS_CODE;
-	syn_ack_tcp_packet.opts.mss.len        = TCP_OPT_MSS_LEN;
+	syn_ack_tcp_packet.opts = (tcp_syn_ack_opts_t) {
+		.mss       = { .code = TCP_OPT_MSS_CODE,       .len = TCP_OPT_MSS_LEN },
+		.sack_perm = { .code = TCP_OPT_SACK_PERM_CODE, .len = TCP_OPT_SACK_PERM_LEN},
+		.win_scale = { .code = TCP_OPT_WIN_SCALE_CODE, .len = TCP_OPT_WIN_SCALE_LEN},
+		.ts        = { .code = TCP_OPT_TS_CODE,        .len = TCP_OPT_TS_LEN},
+		.eol       = TCP_OPT_EOL_CODE
+	};
 
-	syn_ack_tcp_packet.opts.sack_perm.code = TCP_OPT_SACK_PERM_CODE;
-	syn_ack_tcp_packet.opts.sack_perm.len  = TCP_OPT_SACK_PERM_LEN;
-
-	syn_ack_tcp_packet.opts.win_scale.code = TCP_OPT_WIN_SCALE_CODE;
-	syn_ack_tcp_packet.opts.win_scale.len  = TCP_OPT_WIN_SCALE_LEN;
-
-	syn_ack_tcp_packet.opts.ts.code        = TCP_OPT_TS_CODE;
-	syn_ack_tcp_packet.opts.ts.len         = TCP_OPT_TS_LEN;
-
-	syn_ack_tcp_packet.opts.eol            = TCP_OPT_EOL_CODE;
-
-	/*
-	 * ip header
-	 */
-
+	init_tcp_packet_header(&syn_ack_tcp_packet.tcp, sizeof(tcp_syn_ack_opts_t), TCP_FLAG_SYN | TCP_FLAG_ACK);
 	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_syn_ack_opts_t), 0);
-
-	/*
-	 * eth header
-	 */
-	memcpy(syn_ack_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
-	syn_ack_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
+	init_eth_packet(&syn_ack_tcp_packet.eth);
 }
 
 void
 init_ack_tcp_packet() {
-	/*
-	 * tcp header
-	 */
-	ack_tcp_packet.tcp.src_port    = HTONS(listening_port);
-	ack_tcp_packet.tcp.res         = 0;
-	ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
-	ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t)) / 4;
-	ack_tcp_packet.tcp.flags       = TCP_FLAG_ACK;
 
-	/*
-	 * tcp opts
-	 */
-	ack_tcp_packet.opts.ts.code = TCP_OPT_TS_CODE;
-	ack_tcp_packet.opts.ts.len  = TCP_OPT_TS_LEN;
+	ack_tcp_packet.opts = (tcp_ack_opts_t) {
+		.ts  = { .code = TCP_OPT_TS_CODE, .len = TCP_OPT_TS_LEN},
+		.nop = TCP_OPT_NOP_CODE,
+		.eol = TCP_OPT_EOL_CODE
+	};
 
-	ack_tcp_packet.opts.nop     = TCP_OPT_NOP_CODE;
-	ack_tcp_packet.opts.eol     = TCP_OPT_EOL_CODE;
-
-	/*
-	 * ip header
-	 */
-
+	init_tcp_packet_header(&ack_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK);
 	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_ack_opts_t), 0);
-
-	/*
-	 * eth header
-	 */
-	memcpy(ack_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
-	ack_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
+	init_eth_packet(&ack_tcp_packet.eth);
 }
 
 void
 init_data_tcp_packet() {
-	/*
-	 * tcp header
-	 */
-	data_tcp_packet.tcp.src_port    = HTONS(listening_port);
-	data_tcp_packet.tcp.res         = 0;
-	data_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
-	data_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t)) / 4;
-	data_tcp_packet.tcp.flags       = TCP_FLAG_ACK | TCP_FLAG_PSH;
 
-	/*
-	 * tcp opts
-	 */
-	data_tcp_packet.opts.ts.code = TCP_OPT_TS_CODE;
-	data_tcp_packet.opts.ts.len  = TCP_OPT_TS_LEN;
+	data_tcp_packet.opts = (tcp_data_opts_t) {
+		.ts  = { .code = TCP_OPT_TS_CODE, .len = TCP_OPT_TS_LEN},
+		.nop = TCP_OPT_NOP_CODE,
+		.eol = TCP_OPT_EOL_CODE
+	};
 
-	data_tcp_packet.opts.nop     = TCP_OPT_NOP_CODE;
-	data_tcp_packet.opts.eol     = TCP_OPT_EOL_CODE;
-
-	/*
-	 * ip header
-	 */
-
+	init_tcp_packet_header(&data_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_PSH);
 	init_ip_packet(&data_tcp_packet.ip, sizeof(tcp_data_opts_t), 0);
-
-	/*
-	 * eth header
-	 */
-	memcpy(data_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
-	data_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
+	init_eth_packet(&data_tcp_packet.eth);
 }
 
 void
 init_fin_ack_tcp_packet() {
-	/*
-	 * tcp header
-	 */
-	fin_ack_tcp_packet.tcp.src_port    = HTONS(listening_port);
-	fin_ack_tcp_packet.tcp.res         = 0;
-	fin_ack_tcp_packet.tcp.window      = HTONS(TCP_WINDOW_SIZE); /* XXX: subtract buffer len */
-	fin_ack_tcp_packet.tcp.data_offset = (sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t)) / 4;
-	fin_ack_tcp_packet.tcp.flags       = TCP_FLAG_FIN | TCP_FLAG_ACK;
 
-	/*
-	 * tcp opts
-	 */
-	fin_ack_tcp_packet.opts.ts.code = TCP_OPT_TS_CODE;
-	fin_ack_tcp_packet.opts.ts.len  = TCP_OPT_TS_LEN;
+	fin_ack_tcp_packet.opts = (tcp_fin_ack_opts_t) {
+		.ts  = { .code = TCP_OPT_TS_CODE, .len = TCP_OPT_TS_LEN},
+		.nop = TCP_OPT_NOP_CODE,
+		.eol = TCP_OPT_EOL_CODE
+	};
 
-	fin_ack_tcp_packet.opts.nop     = TCP_OPT_NOP_CODE;
-	fin_ack_tcp_packet.opts.eol     = TCP_OPT_EOL_CODE;
-
-	/*
-	 * ip header
-	 */
-
+	init_tcp_packet_header(&fin_ack_tcp_packet.tcp, sizeof(tcp_fin_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_FIN);
 	init_ip_packet(&fin_ack_tcp_packet.ip, sizeof(tcp_fin_ack_opts_t), 0);
-
-	/*
-	 * eth header
-	 */
-	memcpy(fin_ack_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
-	fin_ack_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
+	init_eth_packet(&fin_ack_tcp_packet.eth);
 }
 
 void
 init_rst_tcp_packet() {
-	/*
-	 * tcp header
-	 */
-	rst_tcp_packet.tcp.res         = 0;
-	rst_tcp_packet.tcp.window      = 0;
-	rst_tcp_packet.tcp.data_offset = sizeof(tcp_hdr_t) / 4;
-	rst_tcp_packet.tcp.flags       = TCP_FLAG_RST | TCP_FLAG_ACK;
 
-	/*
-	 * ip header
-	 */
-
+	init_tcp_packet_header(&rst_tcp_packet.tcp, 0, TCP_FLAG_ACK | TCP_FLAG_RST);
 	init_ip_packet(&rst_tcp_packet.ip, 0, 0);
-
-	/*
-	 * eth header
-	 */
-	memcpy(rst_tcp_packet.eth.mac_src, &mac_addr, sizeof(struct ether_addr));
-	rst_tcp_packet.eth.mac_type = ETH_TYPE_IPV4;
+	init_eth_packet(&rst_tcp_packet.eth);
 }
 
 void

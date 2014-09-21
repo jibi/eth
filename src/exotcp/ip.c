@@ -27,20 +27,6 @@
 #include <eth/exotcp/tcp.h>
 
 void
-process_ip(packet_t *packet) {
-	packet->ip_hdr = (ip_hdr_t *) (packet->buf + sizeof(eth_hdr_t));
-
-	if (unlikely(! is_this_card_ip((struct in_addr *) &packet->ip_hdr->dst_addr))) {
-		log_debug1("this is not the packet you are looking for\n");
-		return;
-	}
-
-	if (packet->ip_hdr->proto == IP_PROTO_TCP) {
-		process_tcp(packet);
-	}
-}
-
-void
 init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len, uint16_t payload_len) {
 	ip_hdr->version          = 4;
 	ip_hdr->hdr_len          = 5;
@@ -52,5 +38,19 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len, uint16_t payload_len) {
 	ip_hdr->proto            = IP_PROTO_TCP;
 
 	memcpy(&ip_hdr->src_addr, &ip_addr, sizeof(struct in_addr));
+}
+
+void
+process_ip(packet_t *packet) {
+	packet->ip_hdr = (ip_hdr_t *) (packet->buf + sizeof(eth_hdr_t));
+
+	if (unlikely(! is_this_card_ip((struct in_addr *) &packet->ip_hdr->dst_addr))) {
+		log_debug1("this is not the packet you are looking for\n");
+		return;
+	}
+
+	if (packet->ip_hdr->proto == IP_PROTO_TCP) {
+		process_tcp(packet);
+	}
 }
 

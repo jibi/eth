@@ -40,6 +40,7 @@ typedef struct eth_hdr_s {
 
 #define ETH_MTU (1500 + sizeof(eth_hdr_t))
 
+void init_eth_packet(eth_hdr_t *eth_hdr);
 void process_eth(char *packet_buf, size_t len);
 void dump_eth_hdr(eth_hdr_t *hdr);
 char *format_eth_addr(unsigned char *a);
