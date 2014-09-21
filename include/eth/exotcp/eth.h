@@ -44,8 +44,6 @@ typedef struct eth_hdr_s {
 void init_eth_packet(eth_hdr_t *eth_hdr);
 void setup_eth_hdr(eth_hdr_t *eth_hdr, tcp_conn_t *conn);
 void process_eth(char *packet_buf, size_t len);
-void dump_eth_hdr(eth_hdr_t *hdr);
-char *format_eth_addr(unsigned char *a);
 int is_broadcast_addr(struct ether_addr *a);
 
 #endif

@@ -19,7 +19,6 @@
 #ifndef _ETH_LOG_H
 #define _ETH_LOG_H
 
-void dump(const char *data_buffer, const unsigned int length);
 void log_debug1(const char *msg __attribute__((unused)), ...);
 void log_debug2(const char *msg __attribute__((unused)), ...);
 void log_info(const char *msg, ...);

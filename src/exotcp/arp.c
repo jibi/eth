@@ -75,8 +75,6 @@ process_arp(packet_t *p) {
 		return;
 	}
 
-	dump_arp_hdr(p->arp_hdr);
-
 	memcpy(prebuild_arp_packet.eth.mac_dst, p->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
 	memcpy(prebuild_arp_packet.arp.target_hw_addr, p->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
 	memcpy(prebuild_arp_packet.arp.target_proto_addr, p->arp_hdr->sender_proto_addr, sizeof(struct in_addr));
@@ -84,18 +82,5 @@ process_arp(packet_t *p) {
 	nm_inject(netmap, &prebuild_arp_packet, sizeof(eth_hdr_t) + sizeof(arp_hdr_t));
 
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
-}
-
-void
-dump_arp_hdr(arp_hdr_t __attribute__ ((unused)) *hdr) {
-#if defined DEBUG && defined DUMP_PACKET
-	printf("[arp hdr]\n");
-
-	printf("\thw type: 0x%04x\n", ntohs(hdr->hw_type));
-	printf("\tproto type: 0x%04x\n", ntohs(hdr->proto_type));
-
-	printf("\thw addr len: %d\n", hdr->hw_addr_len);
-	printf("\tproto addr len: %d\n\n", hdr->proto_addr_len);
-#endif
 }
 

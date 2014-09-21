@@ -51,8 +51,6 @@ process_eth(char *packet_buf, size_t len) {
 	eth_hdr_t *eth_hdr = (eth_hdr_t *) packet_buf;
 	packet_t *p;
 
-	dump_eth_hdr(eth_hdr);
-
 	if (unlikely(!(is_this_card_mac((struct ether_addr *) eth_hdr->mac_dst) ||
 		is_broadcast_addr((struct ether_addr *) eth_hdr->mac_dst)))) {
 		printf("this is not the packet you are looking for\n");
@@ -69,30 +67,6 @@ process_eth(char *packet_buf, size_t len) {
 	} else if (eth_hdr->mac_type == ETH_TYPE_ARP) {
 		process_arp(p);
 	}
-}
-
-void
-dump_eth_hdr(eth_hdr_t __attribute__ ((unused)) *hdr) {
-#if defined DEBUG && defined DUMP_PACKET
-	char *mac_dst = format_eth_addr(hdr->mac_dst);
-	char *mac_src = format_eth_addr(hdr->mac_src);
-
-	printf("[eth hdr]\n");
-	printf("\tmac dst: %s\n", mac_dst);
-	printf("\tmac src: %s\n", mac_src);
-	printf("\tether type: 0x%04x\n", ntohs(hdr->mac_type));
-
-	free(mac_dst);
-	free(mac_src);
-#endif
-}
-
-char *
-format_eth_addr(unsigned char *a) {
-	char *ptr;
-	asprintf(&ptr, "%02x:%02x:%02x:%02x:%02x:%02x", a[0], a[1], a[2], a[3], a[4], a[5]);
-
-	return ptr;
 }
 
 int
