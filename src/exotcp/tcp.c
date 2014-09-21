@@ -134,6 +134,13 @@ init_tcp_packet_header(tcp_hdr_t *hdr, uint8_t opts_len, uint8_t flags) {
 }
 
 void
+setup_tcp_hdr(tcp_hdr_t *hdr, tcp_conn_t *conn) {
+	hdr->dst_port = conn->key->src_port;
+	hdr->ack      = htonl(conn->last_recv_byte + 1);
+	hdr->seq      = htonl(conn->last_sent_byte);
+}
+
+void
 init_syn_ack_tcp_packet() {
 
 	/* TODO: negotiate MSS */
@@ -277,9 +284,8 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn) {
 }
 
 void
-send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
+send_tcp_syn_ack(tcp_conn_t *conn) {
 
-	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp SYN+ACK packet");
 
 	/* XXX */
@@ -288,49 +294,36 @@ send_tcp_syn_ack(packet_t *p, tcp_conn_t *conn) {
 	syn_ack_tcp_packet.opts.ts.echo         = conn->ts;
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
-	syn_ack_tcp_packet.tcp.dst_port         = p->tcp_hdr->src_port;
-	syn_ack_tcp_packet.tcp.ack              = htonl(conn->last_recv_byte + 1);
-	syn_ack_tcp_packet.tcp.seq              = htonl(conn->last_sent_byte);
+	setup_tcp_hdr(&syn_ack_tcp_packet.tcp, conn);
 
-	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
+	memcpy(&syn_ack_tcp_packet.ip.dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
 	syn_ack_tcp_packet.ip.check = ip_checksum(&syn_ack_tcp_packet.ip);
 
 	syn_ack_tcp_packet.tcp.checksum = tcp_syn_ack_checksum(&syn_ack_tcp_packet.ip, &syn_ack_tcp_packet.tcp, &syn_ack_tcp_packet.opts);
 
-	memcpy(syn_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	setup_eth_hdr(&syn_ack_tcp_packet.eth, conn);
 
-	nm_get_tx_buff(&tx_desc);
-	memcpy(tx_desc.buf, &syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
-	*tx_desc.len = sizeof(syn_ack_tcp_packet);
-
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	nm_send_packet(&syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
 }
 
 void
-send_tcp_ack(packet_t *p, tcp_conn_t *conn) {
+send_tcp_ack(tcp_conn_t *conn) {
 
-	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp ACK packet");
 
 	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	ack_tcp_packet.opts.ts.echo = conn->ts;
 
-	ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	ack_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
-	ack_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
+	setup_tcp_hdr(&ack_tcp_packet.tcp, conn);
 
-	memcpy(&ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
+	memcpy(&ack_tcp_packet.ip.dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
 	ack_tcp_packet.ip.check = ip_checksum(&ack_tcp_packet.ip);
 
 	ack_tcp_packet.tcp.checksum = tcp_ack_checksum(&ack_tcp_packet.ip, &ack_tcp_packet.tcp, &ack_tcp_packet.opts);
 
-	memcpy(ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	setup_eth_hdr(&ack_tcp_packet.eth, conn);
 
-	nm_get_tx_buff(&tx_desc);
-	memcpy(tx_desc.buf, &ack_tcp_packet, sizeof(ack_tcp_packet));
-	*tx_desc.len = sizeof(ack_tcp_packet);
-
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	nm_send_packet(&ack_tcp_packet, sizeof(ack_tcp_packet));
 }
 
 void
@@ -341,9 +334,7 @@ send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len) {
 	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	data_tcp_packet.opts.ts.echo = conn->ts;
 
-	data_tcp_packet.tcp.dst_port = conn->key->src_port;
-	data_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
-	data_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
+	setup_tcp_hdr(&data_tcp_packet.tcp, conn);
 
 	memcpy(&data_tcp_packet.ip.dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
 	data_tcp_packet.ip.total_len  = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
@@ -351,69 +342,63 @@ send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len) {
 
 	data_tcp_packet.tcp.checksum = tcp_data_checksum(&data_tcp_packet.ip, &data_tcp_packet.tcp, &data_tcp_packet.opts, data, len);
 
-	memcpy(data_tcp_packet.eth.mac_dst, conn->src_mac, sizeof(struct ether_addr));
+	setup_eth_hdr(&data_tcp_packet.eth, conn);
 
 	memcpy(packet_buf, &data_tcp_packet, sizeof(data_tcp_packet));
 }
 
 void
-send_tcp_fin_ack(packet_t *p, tcp_conn_t *conn) {
+send_tcp_fin_ack(tcp_conn_t *conn) {
 
-	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp FIN+ACK packet");
 
 	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
 	fin_ack_tcp_packet.opts.ts.echo = conn->ts;
 
-	fin_ack_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	fin_ack_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
-	fin_ack_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
+	setup_tcp_hdr(&fin_ack_tcp_packet.tcp, conn);
 
-	memcpy(&fin_ack_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
+	memcpy(&fin_ack_tcp_packet.ip.dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
 	fin_ack_tcp_packet.ip.check = ip_checksum(&fin_ack_tcp_packet.ip);
 
 	fin_ack_tcp_packet.tcp.checksum = tcp_fin_ack_checksum(&fin_ack_tcp_packet.ip, &fin_ack_tcp_packet.tcp, &fin_ack_tcp_packet.opts);
 
-	memcpy(fin_ack_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	setup_eth_hdr(&fin_ack_tcp_packet.eth, conn);
 
-	nm_get_tx_buff(&tx_desc);
-	memcpy(tx_desc.buf, &fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
-	*tx_desc.len = sizeof(fin_ack_tcp_packet);
-
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
-
+	nm_send_packet(&fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
 }
 
 void
 send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
-
-	nm_tx_desc_t tx_desc;
 	log_debug1("send tcp RST packet");
 
+	/* TODO: cleanup this */
 	rst_tcp_packet.tcp.src_port = p->tcp_hdr->dst_port;
 	rst_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-
-	if (conn) {
-		rst_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
-		rst_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
-	} else {
-		rst_tcp_packet.tcp.ack      = htonl(ntohl(p->tcp_hdr->seq) + 1);
-		rst_tcp_packet.tcp.seq      = 0;
-	}
+	rst_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
+	rst_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
 
 	memcpy(&rst_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
 	rst_tcp_packet.ip.check = ip_checksum(&rst_tcp_packet.ip);
 
 	rst_tcp_packet.tcp.checksum = tcp_rst_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp);
 
-	memcpy(rst_tcp_packet.eth.mac_dst, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	setup_eth_hdr(&rst_tcp_packet.eth, conn);
 
-	nm_get_tx_buff(&tx_desc);
-	memcpy(tx_desc.buf, &rst_tcp_packet, sizeof(rst_tcp_packet));
-	*tx_desc.len = sizeof(rst_tcp_packet);
+	nm_send_packet(&rst_tcp_packet, sizeof(rst_tcp_packet));
+}
 
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+void
+send_tcp_rst_without_conn(packet_t *p) {
+	tcp_conn_t conn;
 
+	/*
+	 * build a fake conn to keep happy the functions that need a conn
+	 */
+	conn.last_recv_byte = p->tcp_hdr->seq;
+	conn.last_sent_byte = 0;
+	memcpy(conn.src_mac, p->eth_hdr->mac_dst, sizeof(struct ether_addr));
+
+	send_tcp_rst(p, &conn);
 }
 
 void
@@ -421,7 +406,8 @@ process_tcp_new_conn(packet_t *p) {
 	struct timeval tv;
 
 	if (ntohs(p->tcp_hdr->dst_port) != listening_port) {
-		send_tcp_rst(p, NULL);
+		send_tcp_rst_without_conn(p);
+
 		return;
 	}
 
@@ -451,7 +437,7 @@ process_tcp_new_conn(packet_t *p) {
 		parse_tcp_options(p->tcp_hdr, conn);
 	}
 
-	send_tcp_syn_ack(p, conn);
+	send_tcp_syn_ack(conn);
 
 	g_hash_table_insert(tcb_hash, conn->key, conn);
 }
@@ -491,7 +477,7 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	if (ntohl(p->tcp_hdr->seq) <= conn->last_recv_byte) {
 		/* this is a DUP, send an ACK and avoid further processing */
 
-		send_tcp_ack(p, conn);
+		send_tcp_ack(conn);
 		return;
 	}
 
@@ -505,7 +491,7 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
 
 		conn->last_recv_byte += len;
-		send_tcp_ack(p, conn);
+		send_tcp_ack(conn);
 
 		/* XXX: here we are using the NIC payload string, maybe we
 		 * should copy the request to avoid the possibility that the
@@ -533,7 +519,7 @@ void
 process_tcp_fin(packet_t *p, tcp_conn_t *conn) {
 	conn->last_recv_byte++;
 
-	send_tcp_fin_ack(p, conn);
+	send_tcp_fin_ack(conn);
 	remove_tcb(conn);
 }
 
@@ -568,7 +554,7 @@ process_tcp(packet_t *p) {
 		if (p->tcp_hdr->flags == TCP_FLAG_SYN) {
 			process_tcp_new_conn(p);
 		} else {
-			send_tcp_rst(p, NULL);
+			send_tcp_rst_without_conn(p);
 		}
 	}
 }

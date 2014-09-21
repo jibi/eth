@@ -31,6 +31,7 @@
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/arp.h>
 #include <eth/exotcp/ip.h>
+#include <eth/exotcp/tcp.h>
 
 unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
@@ -38,6 +39,11 @@ void
 init_eth_packet(eth_hdr_t *eth_hdr) {
 	memcpy(eth_hdr->mac_src, &mac_addr, sizeof(struct ether_addr));
 	eth_hdr->mac_type = ETH_TYPE_IPV4;
+}
+
+void
+setup_eth_hdr(eth_hdr_t *eth_hdr, tcp_conn_t *conn) {
+	memcpy(eth_hdr->mac_dst, conn->src_mac, sizeof(struct ether_addr));
 }
 
 void

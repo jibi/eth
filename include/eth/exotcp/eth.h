@@ -28,6 +28,7 @@
 #include <net/ethernet.h>
 
 #include <eth/exotcp.h>
+#include <eth/exotcp/tcp.h>
 
 typedef struct eth_hdr_s {
 	uint8_t  mac_dst[6];
@@ -41,6 +42,7 @@ typedef struct eth_hdr_s {
 #define ETH_MTU (1500 + sizeof(eth_hdr_t))
 
 void init_eth_packet(eth_hdr_t *eth_hdr);
+void setup_eth_hdr(eth_hdr_t *eth_hdr, tcp_conn_t *conn);
 void process_eth(char *packet_buf, size_t len);
 void dump_eth_hdr(eth_hdr_t *hdr);
 char *format_eth_addr(unsigned char *a);

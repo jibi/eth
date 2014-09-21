@@ -150,3 +150,14 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 	return nm_get_tx_buff_no_poll(tx_desc);
 }
 
+void
+nm_send_packet(void *buf, uint16_t len) {
+	nm_tx_desc_t tx_desc;
+
+	nm_get_tx_buff(&tx_desc);
+	memcpy(tx_desc.buf, buf, len);
+	*tx_desc.len = len;
+
+	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+}
+
