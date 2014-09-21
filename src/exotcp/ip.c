@@ -27,11 +27,11 @@
 #include <eth/exotcp/tcp.h>
 
 void
-init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len, uint16_t payload_len) {
+init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len) {
 	ip_hdr->version          = 4;
 	ip_hdr->hdr_len          = 5;
 	ip_hdr->tos              = 0;
-	ip_hdr->total_len        = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + opt_len + payload_len);
+	ip_hdr->total_len        = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + opt_len);
 	ip_hdr->id               = 0;
 	ip_hdr->frag_offset      = HTONS(0x4000); /* dont fragment */
 	ip_hdr->ttl              = 64;

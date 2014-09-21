@@ -39,7 +39,7 @@ typedef struct ip_hdr_s {
 
 #define IP_PROTO_TCP 0x6
 
-void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len, uint16_t payload_len);
+void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len);
 void process_ip(packet_t *p);
 uint16_t ip_checksum(ip_hdr_t *ip_hdr);
 #endif
