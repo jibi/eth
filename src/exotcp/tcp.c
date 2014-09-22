@@ -402,7 +402,7 @@ process_tcp_new_conn(packet_t *p) {
 
 	struct timeval tv;
 
-	if (ntohs(p->tcp_hdr->dst_port) != listening_port) {
+	if (unlikely(ntohs(p->tcp_hdr->dst_port) != listening_port)) {
 		send_tcp_rst_without_conn(p);
 
 		return;
@@ -567,7 +567,7 @@ process_tcp(packet_t *p) {
 				break;
 		}
 	} else {
-		if (p->tcp_hdr->flags == TCP_FLAG_SYN) {
+		if (likely(p->tcp_hdr->flags == TCP_FLAG_SYN)) {
 			process_tcp_new_conn(p);
 		} else {
 			send_tcp_rst_without_conn(p);
@@ -622,7 +622,7 @@ tcp_conn_send_data_http_hdr(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 	res = conn->http_response;
 
 	while (http_res_has_header_to_send(res) && tcp_conn_has_open_window(conn) && ctx->slot_count < MAX_SLOT) {
-		if (! nm_get_tx_buff_no_poll(&tx_desc)) {
+		if (unlikely(!nm_get_tx_buff_no_poll(&tx_desc))) {
 			break;
 		}
 
@@ -719,7 +719,7 @@ tcp_conn_send_data_http_file(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 		iovcnt++;
 	}
 
-	if (iovcnt > 0) {
+	if (likely(iovcnt > 0)) {
 		preadv(res->file_fd, iov, iovcnt, start_pos);
 
 		/*

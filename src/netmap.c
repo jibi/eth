@@ -90,7 +90,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 		send_ring = NETMAP_TXRING(netmap->nifp, 0);
 
 		while (!nm_ring_empty(send_ring) && has_data_to_send) {
-			if (! resume_loop) {
+			if (unlikely(!resume_loop)) {
 				g_hash_table_iter_init (&iter, tcb_hash);
 			}
 
@@ -100,7 +100,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 			while (g_hash_table_iter_next (&iter, &key, &value)) {
 				tcp_conn_t *conn = value;
 
-				if (nm_ring_empty(send_ring)) {
+				if (unlikely(nm_ring_empty(send_ring))) {
 					resume_loop = true;
 					break;
 				}
@@ -123,7 +123,7 @@ nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
 
 	ring = NETMAP_TXRING(netmap->nifp, 0);
 
-	if (nm_ring_empty(ring)) {
+	if (unlikely(nm_ring_empty(ring))) {
 		return 0;
 	}
 
