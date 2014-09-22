@@ -426,6 +426,7 @@ process_tcp_new_conn(packet_t *p) {
 	conn->effective_window = 0;
 	conn->win_scale        = 0;
 
+	conn->data_len         = 0;
 	conn->http_response    = NULL;
 
 	log_debug1("recv tcp SYN packet");
@@ -480,17 +481,18 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	}
 
 	if (len) {
-		/* TODO: if the PSH flag is not set, enqueue the incomplete
-		 * payload and wait for the other segments */
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
+
+		//TODO: check we do not go beyond the TCP receive window size
+		memcpy(conn->data_buffer + conn->data_len, payload, len);
+		conn->data_len += len;
 
 		conn->last_recv_byte += len;
 		send_tcp_ack(conn);
 
-		/* XXX: here we are using the NIC payload string, maybe we
-		 * should copy the request to avoid the possibility that the
-		 * packet will be overwritten during the processing */
-		handle_http_request(conn, payload, len);
+		if (p->tcp_hdr->flags & TCP_FLAG_PSH) {
+			handle_http_request(conn);
+		}
 
 	}
 
@@ -752,6 +754,7 @@ tcp_conn_send_data(tcp_conn_t *conn) {
 		close(res->file_fd);
 		free(res);
 
+		conn->data_len      = 0;
 		conn->http_response = NULL;
 	}
 }

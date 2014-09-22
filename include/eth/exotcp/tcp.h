@@ -124,8 +124,26 @@ typedef tcp_ts_opts_t tcp_fin_ack_opts_t;
 #define TCP_OPT_TS_LEN        10
 
 #define TCP_DATA_PACKET_PAYLOAD(x) (x + sizeof(eth_hdr_t) + sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t))
+#define TCP_WINDOW_SIZE 0x4000
 
-void process_tcp(packet_t *p);
+/*
+ * from RFC 6691:
+ *
+ *  When calculating the value to put in the TCP MSS option, the MTU
+ *  value SHOULD be decreased by only the size of the fixed IP and TCP
+ *  headers and SHOULD NOT be decreased to account for any possible IP or
+ *  TCP options; conversely, the sender MUST reduce the TCP data length
+ *  to account for any IP or TCP options that it is including in the
+ *  packets that it sends.  The rest of this document just expounds on
+ *  that statement, and the goal is to avoid IP-level fragmentation of
+ *  TCP packets.
+ *
+ * So, assuming we are on an ethernet network, we set MSS to:
+ * ethernet MTU - ip header size - tcp header size,
+ * without counting options
+ */
+#define TCP_MSS       (ETH_MTU - sizeof(ip_hdr_t) - sizeof(tcp_hdr_t))
+#define TCP_WIN_SCALE 0
 
 typedef enum tcp_state_e {
 	SYN_RCVD,
@@ -160,34 +178,27 @@ typedef struct tcp_conn_s {
 	uint32_t ts;
 	uint32_t echo_ts;
 
+	/*
+	 * data_buffer is the TCP "system" buffer, where we receive data.
+	 *
+	 * Theorically we sould need another buffer (which would be the
+	 * "application" buffer) where the application copies data received from
+	 * the socket.
+	 *
+	 * Practically we use only one buffer shared between the TCP stack and
+	 * the app. So no need to copy data.
+	 */
+
+	uint8_t data_buffer[TCP_WINDOW_SIZE];
+	size_t  data_len;
+
 	http_response_t *http_response;
 } tcp_conn_t;
 
-void init_tcp();
-
-#define TCP_WINDOW_SIZE 0x4000
-
-/*
- * from RFC 6691:
- *
- *  When calculating the value to put in the TCP MSS option, the MTU
- *  value SHOULD be decreased by only the size of the fixed IP and TCP
- *  headers and SHOULD NOT be decreased to account for any possible IP or
- *  TCP options; conversely, the sender MUST reduce the TCP data length
- *  to account for any IP or TCP options that it is including in the
- *  packets that it sends.  The rest of this document just expounds on
- *  that statement, and the goal is to avoid IP-level fragmentation of
- *  TCP packets.
- *
- * So, assuming we are on an ethernet network, we set MSS to:
- * ethernet MTU - ip header size - tcp header size,
- * without counting options
- */
-#define TCP_MSS         (ETH_MTU - sizeof(ip_hdr_t) - sizeof(tcp_hdr_t))
-#define TCP_WIN_SCALE   0
-
 extern GHashTable *tcb_hash;
 
+void init_tcp();
+void process_tcp(packet_t *p);
 int tcp_conn_has_data_to_send(tcp_conn_t *conn);
 void tcp_conn_send_data(tcp_conn_t *conn);
 

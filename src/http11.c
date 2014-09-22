@@ -196,7 +196,7 @@ eth_http_response(http_response_t *response) {
 }
 
 void
-handle_http_request(tcp_conn_t *conn, char *request, size_t len) {
+handle_http_request(tcp_conn_t *conn) {
 	http_response_t *response;
 
 	if (!conn->http_response) {
@@ -210,7 +210,7 @@ handle_http_request(tcp_conn_t *conn, char *request, size_t len) {
 		response = conn->http_response;
 	}
 
-	eth_parser_execute(response->parser, request, len + 1, 0);
+	eth_parser_execute(response->parser, (const char *) conn->data_buffer, conn->data_len + 1, 0);
 
 	if (eth_parser_finish(response->parser) == 1) {
 		if (!strcmp(response->parser->path, "/autism")) {

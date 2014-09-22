@@ -84,7 +84,7 @@ int eth_parser_is_finished(eth_parser_t *parser);
 
 eth_parser_t *new_eth_parser();
 void delete_eth_parser_t(eth_parser_t *p);
-void handle_http_request(tcp_conn_t *conn, char *request, size_t len);
+void handle_http_request(tcp_conn_t *conn);
 
 int http_res_has_header_to_send(http_response_t *res);
 int http_res_has_file_to_send(http_response_t *res);
