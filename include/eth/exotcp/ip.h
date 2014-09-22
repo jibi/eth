@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 #include <eth/exotcp.h>
+#include <eth/exotcp/tcp.h>
 
 typedef struct ip_hdr_s {
 	uint32_t hdr_len:4;
@@ -40,7 +41,9 @@ typedef struct ip_hdr_s {
 #define IP_PROTO_TCP 0x6
 
 void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len);
+void setup_ip_hdr(ip_hdr_t *ip_hdr, tcp_conn_t *conn, uint16_t payload_len);
 void process_ip(packet_t *p);
-uint16_t ip_checksum(ip_hdr_t *ip_hdr);
+void ip_checksum(ip_hdr_t *ip_hdr);
+
 #endif
 

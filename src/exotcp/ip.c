@@ -41,6 +41,17 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len) {
 }
 
 void
+setup_ip_hdr(ip_hdr_t *ip_hdr, tcp_conn_t *conn, uint16_t payload_len) {
+	memcpy(&ip_hdr->dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
+
+	if (payload_len) {
+		ip_hdr->total_len = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + payload_len);
+	}
+
+	ip_checksum(ip_hdr);
+}
+
+void
 process_ip(packet_t *packet) {
 	packet->ip_hdr = (ip_hdr_t *) (packet->buf + sizeof(eth_hdr_t));
 
@@ -54,10 +65,9 @@ process_ip(packet_t *packet) {
 	}
 }
 
-uint16_t
+void
 ip_checksum(ip_hdr_t *ip_hdr) {
 	ip_hdr->check = 0;
-
-	return checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
+	ip_hdr->check = checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
 }
 
