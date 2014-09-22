@@ -366,16 +366,11 @@ send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 
 	log_debug1("send tcp RST packet");
 
-	/* TODO: cleanup this */
 	setup_eth_hdr(&rst_tcp_packet.eth, conn);
-
-	memcpy(&rst_tcp_packet.ip.dst_addr, &p->ip_hdr->src_addr, sizeof(struct in_addr));
-	ip_checksum(&rst_tcp_packet.ip);
+	setup_ip_hdr(&rst_tcp_packet.ip, conn, 0);
+	setup_tcp_hdr(&rst_tcp_packet.tcp, conn);
 
 	rst_tcp_packet.tcp.src_port = p->tcp_hdr->dst_port;
-	rst_tcp_packet.tcp.dst_port = p->tcp_hdr->src_port;
-	rst_tcp_packet.tcp.ack      = htonl(conn->last_recv_byte + 1);
-	rst_tcp_packet.tcp.seq      = htonl(conn->last_sent_byte);
 
 	tcp_rst_checksum();
 
@@ -385,16 +380,21 @@ send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 void
 send_tcp_rst_without_conn(packet_t *p) {
 
-	tcp_conn_t conn;
+	//* build a fake conn to keep happy the functions that need a conn
+	tcp_conn_t *conn    = malloc(sizeof(tcp_conn_t));
+	tcp_conn_key_t *key = malloc(sizeof(tcp_conn_key_t));
 
-	/*
-	 * build a fake conn to keep happy the functions that need a conn
-	 */
-	conn.last_recv_byte = p->tcp_hdr->seq;
-	conn.last_sent_byte = 0;
-	memcpy(conn.src_mac, p->eth_hdr->mac_dst, sizeof(struct ether_addr));
+	conn->last_recv_byte = p->tcp_hdr->seq;
+	conn->last_sent_byte = 0;
+	conn->key            = key;
+	conn->key->src_addr  = p->ip_hdr->src_addr;
 
-	send_tcp_rst(p, &conn);
+	memcpy(conn->src_mac, p->eth_hdr->mac_dst, sizeof(struct ether_addr));
+
+	send_tcp_rst(p, conn);
+
+	free(conn);
+	free(key);
 }
 
 void
