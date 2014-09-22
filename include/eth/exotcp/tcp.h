@@ -162,7 +162,24 @@ typedef struct tcp_conn_s {
 void init_tcp();
 
 #define TCP_WINDOW_SIZE 0x4000
-#define TCP_MSS         1460
+
+/*
+ * from RFC 6691:
+ *
+ *  When calculating the value to put in the TCP MSS option, the MTU
+ *  value SHOULD be decreased by only the size of the fixed IP and TCP
+ *  headers and SHOULD NOT be decreased to account for any possible IP or
+ *  TCP options; conversely, the sender MUST reduce the TCP data length
+ *  to account for any IP or TCP options that it is including in the
+ *  packets that it sends.  The rest of this document just expounds on
+ *  that statement, and the goal is to avoid IP-level fragmentation of
+ *  TCP packets.
+ *
+ * So, assuming we are on an ethernet network, we set MSS to:
+ * ethernet MTU - ip header size - tcp header size,
+ * without counting options
+ */
+#define TCP_MSS         (ETH_MTU - sizeof(ip_hdr_t) - sizeof(tcp_hdr_t))
 #define TCP_WIN_SCALE   0
 
 extern GHashTable *tcb_hash;
