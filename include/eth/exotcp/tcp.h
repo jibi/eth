@@ -19,12 +19,16 @@
 #ifndef _ETH_EXOTCP_TCP_H
 #define _ETH_EXOTCP_TCP_H
 
+typedef struct tcp_conn_s tcp_conn_t;
+typedef struct http_response_s http_response_t;
+
 #include <stdio.h>
 #include <stdint.h>
 
 #include <eth/netmap.h>
 #include <eth/exotcp.h>
 #include <eth/http11.h>
+
 #include <glib.h>
 
 #define NETMAP_WITH_LIBS

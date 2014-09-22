@@ -475,14 +475,9 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 
 	if (ntohl(p->tcp_hdr->seq) <= conn->last_recv_byte) {
 		/* this is a DUP, send an ACK and avoid further processing */
-
 		send_tcp_ack(conn);
 		return;
 	}
-
-	/*
-	 * TODO: check if something got missed and ask for retransmission
-	 */
 
 	if (len) {
 		/* TODO: if the PSH flag is not set, enqueue the incomplete
@@ -495,12 +490,13 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 		/* XXX: here we are using the NIC payload string, maybe we
 		 * should copy the request to avoid the possibility that the
 		 * packet will be overwritten during the processing */
-		conn->http_response = handle_http_request(payload, len);
+		handle_http_request(conn, payload, len);
 
 	}
 
 	if (p->tcp_hdr->flags & TCP_FLAG_ACK) {
 
+		 //TODO: check if something got missed and ask for retransmission
 		conn->last_ackd_byte   = ntohl(p->tcp_hdr->ack);
 		conn->effective_window = (ntohs(p->tcp_hdr->window) << conn->win_scale) -
 			(conn->last_sent_byte - conn->last_ackd_byte);
@@ -606,7 +602,8 @@ tcp_conn_has_open_window(tcp_conn_t *conn) {
 int
 tcp_conn_has_data_to_send(tcp_conn_t *conn) {
 
-	return conn->http_response && tcp_conn_has_open_window(conn);
+	return conn->http_response && conn->http_response->finished &&
+		tcp_conn_has_open_window(conn);
 }
 
 void

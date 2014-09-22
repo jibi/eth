@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <eth.h>
 #include <eth/http11.h>
 
 static void
@@ -194,20 +195,32 @@ eth_http_response(http_response_t *response) {
 	response->file_pos   = 0;
 }
 
-http_response_t *
-handle_http_request(char *request, size_t len) {
-	http_response_t *response = malloc(sizeof(http_response_t));
+void
+handle_http_request(tcp_conn_t *conn, char *request, size_t len) {
+	http_response_t *response;
 
-	response->parser = new_eth_parser();
-	eth_parser_execute(response->parser, request, len + 1, 0);
+	if (!conn->http_response) {
+		response = malloc(sizeof(http_response_t));
 
-	if (!strcmp(response->parser->path, "/autism")) {
-		test_response(response);
+		response->parser = new_eth_parser();
+		response->finished = false;
+
+		conn->http_response = response;
 	} else {
-		eth_http_response(response);
+		response = conn->http_response;
 	}
 
-	return response;
+	eth_parser_execute(response->parser, request, len + 1, 0);
+
+	if (eth_parser_finish(response->parser) == 1) {
+		if (!strcmp(response->parser->path, "/autism")) {
+			test_response(response);
+		} else {
+			eth_http_response(response);
+		}
+
+		response->finished = true;
+	}
 }
 
 int

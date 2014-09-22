@@ -21,6 +21,9 @@
 
 #include <sys/types.h>
 
+#include <eth.h>
+#include <eth/exotcp/tcp.h>
+
 #define BUFFER_LEN 1024
 
 struct eth_parser_s;
@@ -67,6 +70,8 @@ typedef struct http_response_s {
 	int    file_fd;
 	size_t file_len;
 	size_t file_pos;
+
+	bool   finished;
 } http_response_t;
 
 int eth_parser_init(eth_parser_t *parser);
@@ -79,7 +84,7 @@ int eth_parser_is_finished(eth_parser_t *parser);
 
 eth_parser_t *new_eth_parser();
 void delete_eth_parser_t(eth_parser_t *p);
-http_response_t *handle_http_request(char *request, size_t len);
+void handle_http_request(tcp_conn_t *conn, char *request, size_t len);
 
 int http_res_has_header_to_send(http_response_t *res);
 int http_res_has_file_to_send(http_response_t *res);
