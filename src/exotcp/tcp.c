@@ -153,7 +153,7 @@ setup_tcp_hdr(tcp_hdr_t *hdr, tcp_conn_t *conn) {
 
 	hdr->dst_port = conn->key->src_port;
 	hdr->ack      = htonl(conn->last_recv_byte + 1);
-	hdr->seq      = htonl(conn->last_sent_byte);
+	hdr->seq      = htonl(conn->last_sent_byte + 1);
 	hdr->window   = HTONS(TCP_WINDOW_SIZE - conn->data_len);
 }
 
@@ -419,8 +419,15 @@ new_tcp_conn(packet_t *p) {
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
 
 	gettimeofday(&tv, 0);
-	do { rand_seq = rand();
-	} while (!rand_seq);
+
+	/*
+	 * we do not want to start with a sequence number equal to zero.
+	 * Since we send everytime (last_sent_byte + 1), we have to make sure that
+	 * (rand_seq + 1) != 0
+	 * */
+	do {
+		rand_seq = rand();
+	} while (!(rand_seq + 1));
 
 	conn->key             = conn_key;
 	conn->key->src_port   = p->tcp_hdr->src_port;
@@ -471,6 +478,12 @@ process_tcp_new_conn(packet_t *p) {
 	}
 
 	send_tcp_syn_ack(conn);
+
+	/*
+	 * a packet with the SYN flag require us to increment the sequence
+	 * number by 1
+	 */
+	conn->last_sent_byte++;
 }
 
 tcp_conn_t *
@@ -491,9 +504,6 @@ void
 process_3wh_ack(packet_t *p, tcp_conn_t *conn) {
 	/* TODO: check ack number */
 	/* TODO: calc RTT */
-
-	// with a SYN packet we need to ACK one byte.
-	conn->last_sent_byte++;
 
 	log_debug1("new connection established");
 	conn->state = ESTABLISHED;
@@ -539,7 +549,7 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	if (p->tcp_hdr->flags & TCP_FLAG_ACK) {
 
 		 //TODO: check if something got missed and ask for retransmission
-		conn->last_ackd_byte   = ntohl(p->tcp_hdr->ack);
+		conn->last_ackd_byte  = ntohl(p->tcp_hdr->ack);
 		conn->recv_eff_window = (ntohs(p->tcp_hdr->window) << conn->win_scale) -
 			(conn->last_sent_byte - conn->last_ackd_byte);
 	}
