@@ -143,7 +143,7 @@ init_tcp_packet_header(tcp_hdr_t *hdr, uint8_t opts_len, uint8_t flags) {
 
 	hdr->src_port    = HTONS(listening_port);
 	hdr->res         = 0;
-	hdr->window      = HTONS(TCP_WINDOW_SIZE); /* TODO: comply to TCP window size */
+	hdr->window      = HTONS(TCP_WINDOW_SIZE);
 	hdr->data_offset = (sizeof(tcp_hdr_t) + opts_len) / 4;
 	hdr->flags       = flags;
 }
@@ -154,6 +154,7 @@ setup_tcp_hdr(tcp_hdr_t *hdr, tcp_conn_t *conn) {
 	hdr->dst_port = conn->key->src_port;
 	hdr->ack      = htonl(conn->last_recv_byte + 1);
 	hdr->seq      = htonl(conn->last_sent_byte);
+	hdr->window   = HTONS(TCP_WINDOW_SIZE - conn->data_len);
 }
 
 void
