@@ -397,10 +397,49 @@ send_tcp_rst_without_conn(packet_t *p) {
 	free(key);
 }
 
+tcp_conn_t *
+new_tcp_conn(packet_t *p) {
+
+	struct timeval tv;
+
+	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
+	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
+
+	gettimeofday(&tv, 0);
+
+	conn->key             = conn_key;
+	conn->key->src_port   = p->tcp_hdr->src_port;
+	conn->key->src_addr   = p->ip_hdr->src_addr;
+
+	memcpy(conn->src_mac, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	conn->last_recv_byte  = ntohl(p->tcp_hdr->seq);
+	conn->last_sent_byte  = 1; /* XXX: we use 1 instead of  rand(); to avoid (temporarily) seq numbers wraparound */
+	conn->state           = SYN_RCVD;
+	conn->last_clock      = tv.tv_sec / 1000 + tv.tv_usec * 1000;
+	conn->recv_eff_window = 0;
+	conn->win_scale       = 0;
+	conn->data_len        = 0;
+	conn->http_response   = NULL;
+
+	g_hash_table_insert(tcb_hash, conn->key, conn);
+
+	return conn;
+}
+
+void
+delete_tcp_conn(tcp_conn_t *conn) {
+
+	g_hash_table_remove(tcb_hash, conn->key);
+
+	free(conn->key);
+	free(conn);
+}
+
+
 void
 process_tcp_new_conn(packet_t *p) {
 
-	struct timeval tv;
+	tcp_conn_t *conn;
 
 	if (unlikely(ntohs(p->tcp_hdr->dst_port) != listening_port)) {
 		send_tcp_rst_without_conn(p);
@@ -408,36 +447,15 @@ process_tcp_new_conn(packet_t *p) {
 		return;
 	}
 
-	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
-	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
-
-	gettimeofday(&tv, 0);
-
-	conn->key           = conn_key;
-	conn->key->src_port = p->tcp_hdr->src_port;
-	conn->key->src_addr = p->ip_hdr->src_addr;
-	memcpy(conn->src_mac, p->eth_hdr->mac_src, sizeof(struct ether_addr));
-
-	conn->last_recv_byte = ntohl(p->tcp_hdr->seq);
-	conn->last_sent_byte = 1; /* XXX: we use 1 instead of  rand(); to avoid (temporarily) seq numbers wraparound */
-	conn->state          = SYN_RCVD;
-	conn->last_clock     = tv.tv_sec / 1000 + tv.tv_usec * 1000;
-
-	conn->effective_window = 0;
-	conn->win_scale        = 0;
-
-	conn->data_len         = 0;
-	conn->http_response    = NULL;
-
 	log_debug1("recv tcp SYN packet");
+
+	conn = new_tcp_conn(p);
 
 	if (p->tcp_hdr->data_offset > 5) {
 		parse_tcp_options(p->tcp_hdr, conn);
 	}
 
 	send_tcp_syn_ack(conn);
-
-	g_hash_table_insert(tcb_hash, conn->key, conn);
 }
 
 tcp_conn_t *
@@ -485,7 +503,7 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 
 		if (conn->data_len + len > TCP_WINDOW_SIZE) {
 			send_tcp_rst(p, conn);
-			remove_tcb(conn);
+			delete_tcp_conn(conn);
 
 			return;
 		}
@@ -507,18 +525,9 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 
 		 //TODO: check if something got missed and ask for retransmission
 		conn->last_ackd_byte   = ntohl(p->tcp_hdr->ack);
-		conn->effective_window = (ntohs(p->tcp_hdr->window) << conn->win_scale) -
+		conn->recv_eff_window = (ntohs(p->tcp_hdr->window) << conn->win_scale) -
 			(conn->last_sent_byte - conn->last_ackd_byte);
 	}
-}
-
-void
-remove_tcb(tcp_conn_t *conn) {
-
-	g_hash_table_remove(tcb_hash, conn->key);
-
-	free(conn->key);
-	free(conn);
 }
 
 void
@@ -536,7 +545,7 @@ process_closed_ack(packet_t *p, tcp_conn_t *conn) {
 	/* TODO: check this is an ack to our FIN packet */
 	log_debug1("connection closed");
 
-	remove_tcb(conn);
+	delete_tcp_conn(conn);
 }
 
 void
@@ -605,7 +614,7 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 int
 tcp_conn_has_open_window(tcp_conn_t *conn) {
 
-	return conn->effective_window > ETH_MTU;
+	return conn->recv_eff_window > ETH_MTU;
 }
 
 int
@@ -642,8 +651,8 @@ tcp_conn_send_data_http_hdr(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 
 		send_tcp_data(conn, tx_desc.buf, payload_buf, payload_len);
 
-		conn->last_sent_byte   += payload_len;
-		conn->effective_window -= payload_len;
+		conn->last_sent_byte  += payload_len;
+		conn->recv_eff_window -= payload_len;
 
 		ctx->slot_count++;
 	}
@@ -687,8 +696,8 @@ tcp_conn_send_data_http_file(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 			tx_desc[0].buf = ctx->http_hdr_last_tx_desc.buf;
 			tx_desc[0].len = ctx->http_hdr_last_tx_desc.len;
 
-			conn->last_sent_byte   -= ctx->last_http_hdr_pl_len;
-			conn->effective_window += ctx->last_http_hdr_pl_len;
+			conn->last_sent_byte  -= ctx->last_http_hdr_pl_len;
+			conn->recv_eff_window += ctx->last_http_hdr_pl_len;
 
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc->buf) + ctx->last_http_hdr_pl_len;
 			payload_len = MIN(
@@ -698,7 +707,7 @@ tcp_conn_send_data_http_file(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 
 			*tx_desc->len = sizeof(data_tcp_packet) + ctx->last_http_hdr_pl_len + payload_len;
 
-			conn->effective_window -= ctx->last_http_hdr_pl_len + payload_len;
+			conn->recv_eff_window -= ctx->last_http_hdr_pl_len + payload_len;
 			http_hdr_sent = 1;
 
 		} else {
@@ -713,7 +722,7 @@ tcp_conn_send_data_http_file(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 			);
 
 			*tx_desc[iovcnt].len = sizeof(data_tcp_packet) + payload_len;
-			conn->effective_window -= payload_len;
+			conn->recv_eff_window -= payload_len;
 		}
 
 		iov[iovcnt].iov_base = payload_buf;

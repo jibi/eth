@@ -170,7 +170,7 @@ typedef struct tcp_conn_s {
 	tcp_state_t state;
 	uint32_t last_clock;
 
-	int effective_window;
+	uint32_t recv_eff_window;
 
 	uint16_t mss;
 	uint8_t  win_scale;
