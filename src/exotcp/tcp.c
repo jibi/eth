@@ -127,6 +127,17 @@ get_tcp_clock(tcp_conn_t *conn) {
 	return clock;
 }
 
+
+//returns x - y taking account of the wraparound
+static inline int
+cmp_seq(uint32_t x, uint32_t y) {
+	uint32_t t = (0x80000000 - 1);
+
+	return (x > y) ?
+		(((x - y) > t) ? -(int32_t)(y - x) :  (int32_t)(x - y)) :
+		(((y - x) > t) ?  (int32_t)(x - y) : -(int32_t)(y - x));
+}
+
 void
 init_tcp_packet_header(tcp_hdr_t *hdr, uint8_t opts_len, uint8_t flags) {
 
@@ -401,11 +412,14 @@ tcp_conn_t *
 new_tcp_conn(packet_t *p) {
 
 	struct timeval tv;
+	int rand_seq;
 
 	tcp_conn_key_t *conn_key = malloc(sizeof(tcp_conn_key_t));
 	tcp_conn_t     *conn     = malloc(sizeof(tcp_conn_t));
 
 	gettimeofday(&tv, 0);
+	do { rand_seq = rand();
+	} while (!rand_seq);
 
 	conn->key             = conn_key;
 	conn->key->src_port   = p->tcp_hdr->src_port;
@@ -413,7 +427,7 @@ new_tcp_conn(packet_t *p) {
 
 	memcpy(conn->src_mac, p->eth_hdr->mac_src, sizeof(struct ether_addr));
 	conn->last_recv_byte  = ntohl(p->tcp_hdr->seq);
-	conn->last_sent_byte  = 1; /* XXX: we use 1 instead of  rand(); to avoid (temporarily) seq numbers wraparound */
+	conn->last_sent_byte  = rand_seq;
 	conn->state           = SYN_RCVD;
 	conn->last_clock      = tv.tv_sec / 1000 + tv.tv_usec * 1000;
 	conn->recv_eff_window = 0;
@@ -492,7 +506,7 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 
 	parse_tcp_options(p->tcp_hdr, conn);
 
-	if (ntohl(p->tcp_hdr->seq) <= conn->last_recv_byte) {
+	if (cmp_seq(ntohl(p->tcp_hdr->seq), conn->last_recv_byte) <= 0) {
 		/* this is a DUP, send an ACK and avoid further processing */
 		send_tcp_ack(conn);
 		return;
