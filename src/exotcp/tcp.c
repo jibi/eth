@@ -483,6 +483,13 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 	if (len) {
 		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
 
+		if (conn->data_len + len > TCP_WINDOW_SIZE) {
+			send_tcp_rst(p, conn);
+			remove_tcb(conn);
+
+			return;
+		}
+
 		//TODO: check we do not go beyond the TCP receive window size
 		memcpy(conn->data_buffer + conn->data_len, payload, len);
 		conn->data_len += len;
