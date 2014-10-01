@@ -28,11 +28,10 @@
 #include <net/ethernet.h>
 
 #include <eth/exotcp.h>
-#include <eth/exotcp/tcp.h>
 
 typedef struct eth_hdr_s {
-	uint8_t  mac_dst[6];
-	uint8_t  mac_src[6];
+	uint8_t  dst_addr[6];
+	uint8_t  src_addr[6];
 	uint16_t mac_type;
 } __attribute__ ((packed)) eth_hdr_t;
 
@@ -42,8 +41,8 @@ typedef struct eth_hdr_s {
 #define ETH_MTU (1500 + sizeof(eth_hdr_t))
 
 void init_eth_packet(eth_hdr_t *eth_hdr);
-void setup_eth_hdr(eth_hdr_t *eth_hdr, tcp_conn_t *conn);
-void process_eth(char *packet_buf, size_t len);
+void setup_eth_hdr(eth_hdr_t *eth_hdr);
+void process_eth();
 int is_broadcast_addr(struct ether_addr *a);
 
 #endif

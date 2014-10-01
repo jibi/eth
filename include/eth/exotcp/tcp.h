@@ -161,7 +161,7 @@ typedef struct tcp_conn_key_s {
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
-	uint8_t  src_mac[6];
+	socket_t       *sock;
 
 	uint32_t last_recv_byte;
 	uint32_t last_sent_byte;
@@ -198,7 +198,7 @@ typedef struct tcp_conn_s {
 extern GHashTable *tcb_hash;
 
 void init_tcp();
-void process_tcp(packet_t *p);
+void process_tcp();
 int tcp_conn_has_data_to_send(tcp_conn_t *conn);
 void tcp_conn_send_data(tcp_conn_t *conn);
 

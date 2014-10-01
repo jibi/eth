@@ -29,6 +29,8 @@
 struct ether_addr mac_addr;
 struct in_addr    ip_addr;
 uint16_t          listening_port;
+packet_t          *cur_pkt;
+socket_t          *cur_sock;
 
 void
 init_exotcp(char *mac, char *ip, uint16_t port) {

@@ -151,7 +151,7 @@ init_tcp_packet_header(tcp_hdr_t *hdr, uint8_t opts_len, uint8_t flags) {
 void
 setup_tcp_hdr(tcp_hdr_t *hdr, tcp_conn_t *conn) {
 
-	hdr->dst_port = conn->key->src_port;
+	hdr->dst_port = cur_sock->src_port;
 	hdr->ack      = htonl(conn->last_recv_byte + 1);
 	hdr->seq      = htonl(conn->last_sent_byte + 1);
 	hdr->window   = HTONS(TCP_WINDOW_SIZE - conn->data_len);
@@ -307,8 +307,8 @@ send_tcp_syn_ack(tcp_conn_t *conn) {
 
 	log_debug1("send tcp SYN+ACK packet");
 
-	setup_eth_hdr(&syn_ack_tcp_packet.eth, conn);
-	setup_ip_hdr(&syn_ack_tcp_packet.ip, conn, 0);
+	setup_eth_hdr(&syn_ack_tcp_packet.eth);
+	setup_ip_hdr(&syn_ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&syn_ack_tcp_packet.tcp, conn);
 
 	/* XXX */
@@ -327,8 +327,8 @@ send_tcp_ack(tcp_conn_t *conn) {
 
 	log_debug1("send tcp ACK packet");
 
-	setup_eth_hdr(&ack_tcp_packet.eth, conn);
-	setup_ip_hdr(&ack_tcp_packet.ip, conn, 0);
+	setup_eth_hdr(&ack_tcp_packet.eth);
+	setup_ip_hdr(&ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&ack_tcp_packet.tcp, conn);
 
 	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -344,8 +344,8 @@ send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len) {
 
 	log_debug1("send tcp data packet");
 
-	setup_eth_hdr(&data_tcp_packet.eth, conn);
-	setup_ip_hdr(&data_tcp_packet.ip, conn, len);
+	setup_eth_hdr(&data_tcp_packet.eth);
+	setup_ip_hdr(&data_tcp_packet.ip, len);
 	setup_tcp_hdr(&data_tcp_packet.tcp, conn);
 
 	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -361,8 +361,8 @@ send_tcp_fin_ack(tcp_conn_t *conn) {
 
 	log_debug1("send tcp FIN+ACK packet");
 
-	setup_eth_hdr(&fin_ack_tcp_packet.eth, conn);
-	setup_ip_hdr(&fin_ack_tcp_packet.ip, conn, 0);
+	setup_eth_hdr(&fin_ack_tcp_packet.eth);
+	setup_ip_hdr(&fin_ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&fin_ack_tcp_packet.tcp, conn);
 
 	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -374,15 +374,15 @@ send_tcp_fin_ack(tcp_conn_t *conn) {
 }
 
 void
-send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
+send_tcp_rst(tcp_conn_t *conn) {
 
 	log_debug1("send tcp RST packet");
 
-	setup_eth_hdr(&rst_tcp_packet.eth, conn);
-	setup_ip_hdr(&rst_tcp_packet.ip, conn, 0);
+	setup_eth_hdr(&rst_tcp_packet.eth);
+	setup_ip_hdr(&rst_tcp_packet.ip, 0);
 	setup_tcp_hdr(&rst_tcp_packet.tcp, conn);
 
-	rst_tcp_packet.tcp.src_port = p->tcp_hdr->dst_port;
+	rst_tcp_packet.tcp.src_port = cur_pkt->tcp_hdr->dst_port;
 
 	tcp_rst_checksum();
 
@@ -390,23 +390,8 @@ send_tcp_rst(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
-send_tcp_rst_without_conn(packet_t *p) {
-
-	//* build a fake conn to keep happy the functions that need a conn
-	tcp_conn_t *conn    = malloc(sizeof(tcp_conn_t));
-	tcp_conn_key_t *key = malloc(sizeof(tcp_conn_key_t));
-
-	conn->last_recv_byte = p->tcp_hdr->seq;
-	conn->last_sent_byte = 0;
-	conn->key            = key;
-	conn->key->src_addr  = p->ip_hdr->src_addr;
-
-	memcpy(conn->src_mac, p->eth_hdr->mac_dst, sizeof(struct ether_addr));
-
-	send_tcp_rst(p, conn);
-
-	free(conn);
-	free(key);
+send_tcp_rst_without_conn() {
+	//send_tcp_rst(conn);
 }
 
 tcp_conn_t *
@@ -433,7 +418,9 @@ new_tcp_conn(packet_t *p) {
 	conn->key->src_port   = p->tcp_hdr->src_port;
 	conn->key->src_addr   = p->ip_hdr->src_addr;
 
-	memcpy(conn->src_mac, p->eth_hdr->mac_src, sizeof(struct ether_addr));
+	conn->sock            = malloc(sizeof(socket_t));
+	memcpy(conn->sock, cur_sock, sizeof(socket_t));
+
 	conn->last_recv_byte  = ntohl(p->tcp_hdr->seq);
 	conn->last_sent_byte  = rand_seq;
 	conn->state           = SYN_RCVD;
@@ -459,22 +446,22 @@ delete_tcp_conn(tcp_conn_t *conn) {
 
 
 void
-process_tcp_new_conn(packet_t *p) {
+process_tcp_new_conn() {
 
 	tcp_conn_t *conn;
 
-	if (unlikely(ntohs(p->tcp_hdr->dst_port) != listening_port)) {
-		send_tcp_rst_without_conn(p);
+	if (unlikely(ntohs(cur_pkt->tcp_hdr->dst_port) != listening_port)) {
+		send_tcp_rst_without_conn();
 
 		return;
 	}
 
 	log_debug1("recv tcp SYN packet");
 
-	conn = new_tcp_conn(p);
+	conn = new_tcp_conn(cur_pkt);
 
-	if (p->tcp_hdr->data_offset > 5) {
-		parse_tcp_options(p->tcp_hdr, conn);
+	if (cur_pkt->tcp_hdr->data_offset > 5) {
+		parse_tcp_options(cur_pkt->tcp_hdr, conn);
 	}
 
 	send_tcp_syn_ack(conn);
@@ -501,7 +488,7 @@ get_tcp_conn(packet_t *p) {
 }
 
 void
-process_3wh_ack(packet_t *p, tcp_conn_t *conn) {
+process_3wh_ack(tcp_conn_t *conn) {
 	/* TODO: check ack number */
 	/* TODO: calc RTT */
 
@@ -510,24 +497,24 @@ process_3wh_ack(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
-process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
+process_tcp_segment(tcp_conn_t *conn) {
 
 	char *payload;
-	uint16_t  len = (ntohs(p->ip_hdr->total_len) - sizeof(ip_hdr_t) - (p->tcp_hdr->data_offset * 4));
+	uint16_t  len = (ntohs(cur_pkt->ip_hdr->total_len) - sizeof(ip_hdr_t) - (cur_pkt->tcp_hdr->data_offset * 4));
 
-	parse_tcp_options(p->tcp_hdr, conn);
+	parse_tcp_options(cur_pkt->tcp_hdr, conn);
 
-	if (cmp_seq(ntohl(p->tcp_hdr->seq), conn->last_recv_byte) <= 0) {
+	if (cmp_seq(ntohl(cur_pkt->tcp_hdr->seq), conn->last_recv_byte) <= 0) {
 		/* this is a DUP, send an ACK and avoid further processing */
 		send_tcp_ack(conn);
 		return;
 	}
 
 	if (len) {
-		payload = ((char *) p->tcp_hdr) + (p->tcp_hdr->data_offset * 4);
+		payload = ((char *) cur_pkt->tcp_hdr) + (cur_pkt->tcp_hdr->data_offset * 4);
 
 		if (conn->data_len + len > TCP_WINDOW_SIZE) {
-			send_tcp_rst(p, conn);
+			send_tcp_rst(conn);
 			delete_tcp_conn(conn);
 
 			return;
@@ -540,23 +527,23 @@ process_tcp_segment(packet_t *p, tcp_conn_t *conn) {
 		conn->last_recv_byte += len;
 		send_tcp_ack(conn);
 
-		if (p->tcp_hdr->flags & TCP_FLAG_PSH) {
+		if (cur_pkt->tcp_hdr->flags & TCP_FLAG_PSH) {
 			handle_http_request(conn);
 		}
 
 	}
 
-	if (p->tcp_hdr->flags & TCP_FLAG_ACK) {
+	if (cur_pkt->tcp_hdr->flags & TCP_FLAG_ACK) {
 
 		 //TODO: check if something got missed and ask for retransmission
-		conn->last_ackd_byte  = ntohl(p->tcp_hdr->ack);
-		conn->recv_eff_window = (ntohs(p->tcp_hdr->window) << conn->win_scale) -
+		conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
+		conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << conn->win_scale) -
 			(conn->last_sent_byte - conn->last_ackd_byte);
 	}
 }
 
 void
-process_tcp_fin(packet_t *p, tcp_conn_t *conn) {
+process_tcp_fin(tcp_conn_t *conn) {
 
 	conn->last_recv_byte++;
 	send_tcp_fin_ack(conn);
@@ -565,7 +552,7 @@ process_tcp_fin(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
-process_closed_ack(packet_t *p, tcp_conn_t *conn) {
+process_closed_ack(tcp_conn_t *conn) {
 
 	/* TODO: check this is an ack to our FIN packet */
 	log_debug1("connection closed");
@@ -574,10 +561,11 @@ process_closed_ack(packet_t *p, tcp_conn_t *conn) {
 }
 
 void
-process_tcp(packet_t *p) {
+process_tcp() {
 
-	p->tcp_hdr       = (tcp_hdr_t *) (p->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
-	tcp_conn_t *conn = get_tcp_conn(p);
+	cur_pkt->tcp_hdr   = (tcp_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
+	cur_sock->src_port = cur_pkt->tcp_hdr->src_port;
+	tcp_conn_t *conn   = get_tcp_conn(cur_pkt);
 
 	if (conn) {
 		/*
@@ -585,12 +573,12 @@ process_tcp(packet_t *p) {
 		 */
 		switch (conn->state) {
 			case ESTABLISHED:
-				if (p->tcp_hdr->flags & TCP_FLAG_FIN) {
+				if (cur_pkt->tcp_hdr->flags & TCP_FLAG_FIN) {
 					log_debug1("recv tcp FIN packet");
-					process_tcp_fin(p, conn);
+					process_tcp_fin(conn);
 				} else {
 					log_debug1("recv tcp segment");
-					process_tcp_segment(p, conn);
+					process_tcp_segment(conn);
 				}
 				break;
 			case SYN_RCVD:
@@ -598,18 +586,18 @@ process_tcp(packet_t *p) {
 				/*
 				 * we would expect an ACK packet that concludes the 3WH
 				 */
-				process_3wh_ack(p, conn);
+				process_3wh_ack(conn);
 				break;
 
 			case FIN_SENT:
-				process_closed_ack(p, conn);
+				process_closed_ack(conn);
 				break;
 		}
 	} else {
-		if (likely(p->tcp_hdr->flags == TCP_FLAG_SYN)) {
-			process_tcp_new_conn(p);
+		if (likely(cur_pkt->tcp_hdr->flags == TCP_FLAG_SYN)) {
+			process_tcp_new_conn();
 		} else {
-			send_tcp_rst_without_conn(p);
+			send_tcp_rst_without_conn();
 		}
 	}
 }

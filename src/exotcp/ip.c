@@ -41,8 +41,8 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len) {
 }
 
 void
-setup_ip_hdr(ip_hdr_t *ip_hdr, tcp_conn_t *conn, uint16_t payload_len) {
-	memcpy(&ip_hdr->dst_addr, &conn->key->src_addr, sizeof(struct in_addr));
+setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t payload_len) {
+	ip_hdr->dst_addr = cur_sock->src_ip;
 
 	if (payload_len) {
 		ip_hdr->total_len = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + payload_len);
@@ -52,16 +52,17 @@ setup_ip_hdr(ip_hdr_t *ip_hdr, tcp_conn_t *conn, uint16_t payload_len) {
 }
 
 void
-process_ip(packet_t *packet) {
-	packet->ip_hdr = (ip_hdr_t *) (packet->buf + sizeof(eth_hdr_t));
+process_ip() {
+	cur_pkt->ip_hdr = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
+	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;
 
-	if (unlikely(! is_this_card_ip((struct in_addr *) &packet->ip_hdr->dst_addr))) {
-		log_debug1("this is not the packet you are looking for\n");
+	if (unlikely(! is_this_card_ip((struct in_addr *) &cur_pkt->ip_hdr->dst_addr))) {
+		log_debug1("this is not the cur_pkt you are looking for\n");
 		return;
 	}
 
-	if (packet->ip_hdr->proto == IP_PROTO_TCP) {
-		process_tcp(packet);
+	if (cur_pkt->ip_hdr->proto == IP_PROTO_TCP) {
+		process_tcp();
 	}
 }
 

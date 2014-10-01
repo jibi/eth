@@ -37,35 +37,30 @@ unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
 void
 init_eth_packet(eth_hdr_t *eth_hdr) {
-	memcpy(eth_hdr->mac_src, &mac_addr, sizeof(struct ether_addr));
+	memcpy(eth_hdr->src_addr, &mac_addr, sizeof(struct ether_addr));
 	eth_hdr->mac_type = ETH_TYPE_IPV4;
 }
 
 void
-setup_eth_hdr(eth_hdr_t *eth_hdr, tcp_conn_t *conn) {
-	memcpy(eth_hdr->mac_dst, conn->src_mac, sizeof(struct ether_addr));
+setup_eth_hdr(eth_hdr_t *eth_hdr) {
+	memcpy(eth_hdr->dst_addr, cur_sock->src_mac, sizeof(struct ether_addr));
 }
 
 void
-process_eth(char *packet_buf, size_t len) {
-	eth_hdr_t *eth_hdr = (eth_hdr_t *) packet_buf;
-	packet_t *p;
+process_eth() {
+	cur_pkt->eth_hdr  = (eth_hdr_t *) cur_pkt->buf;
+	memcpy(cur_sock->src_mac,cur_pkt->eth_hdr->src_addr, sizeof(struct ether_addr));
 
-	if (unlikely(!(is_this_card_mac((struct ether_addr *) eth_hdr->mac_dst) ||
-		is_broadcast_addr((struct ether_addr *) eth_hdr->mac_dst)))) {
+	if (unlikely(!(is_this_card_mac((struct ether_addr *) cur_pkt->eth_hdr->dst_addr) ||
+		is_broadcast_addr((struct ether_addr *) cur_pkt->eth_hdr->dst_addr)))) {
 		printf("this is not the packet you are looking for\n");
 		return;
 	}
 
-	p= malloc(sizeof(packet_t));
-	p->buf     = packet_buf;
-	p->eth_hdr = (eth_hdr_t *) packet_buf;
-	p->len     = len;
-
-	if (eth_hdr->mac_type == ETH_TYPE_IPV4) {
-		process_ip(p);
-	} else if (eth_hdr->mac_type == ETH_TYPE_ARP) {
-		process_arp(p);
+	if (cur_pkt->eth_hdr->mac_type == ETH_TYPE_IPV4) {
+		process_ip();
+	} else if (cur_pkt->eth_hdr->mac_type == ETH_TYPE_ARP) {
+		process_arp();
 	}
 }
 

@@ -41,8 +41,8 @@ typedef struct ip_hdr_s {
 #define IP_PROTO_TCP 0x6
 
 void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len);
-void setup_ip_hdr(ip_hdr_t *ip_hdr, tcp_conn_t *conn, uint16_t payload_len);
-void process_ip(packet_t *p);
+void setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t payload_len);
+void process_ip();
 void ip_checksum(ip_hdr_t *ip_hdr);
 
 #endif

@@ -29,6 +29,7 @@
 #include <eth.h>
 #include <eth/log.h>
 #include <eth/exotcp.h>
+#include <eth/exotcp/eth.h>
 #include <eth/exotcp/tcp.h>
 #include <eth/netmap.h>
 
@@ -51,8 +52,22 @@ init_netmap(char *ifname) {
 	}
 }
 
+static inline void
+process_packet(char *buf, size_t len) {
+	packet_t p;
+	socket_t s;
+
+	p.buf = buf;
+	p.len = len;
+
+	set_cur_pkt(&p);
+	set_cur_sock(&s);
+
+	process_eth();
+}
+
 void
-nm_loop(void (*process_packet)(char *, size_t len)) {
+nm_loop() {
 	while (1) {
 		struct pollfd recv_fds, send_fds;
 		struct netmap_ring *recv_ring, *send_ring;
@@ -99,6 +114,7 @@ nm_loop(void (*process_packet)(char *, size_t len)) {
 
 			while (g_hash_table_iter_next (&iter, &key, &value)) {
 				tcp_conn_t *conn = value;
+				set_cur_sock(conn->sock);
 
 				if (unlikely(nm_ring_empty(send_ring))) {
 					resume_loop = true;
