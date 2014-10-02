@@ -23,11 +23,13 @@
 
 uint16_t
 checksum(const uint8_t *buf, uint32_t size) {
+
 	return finalize_checksum(0, buf, size);
 }
 
 uint32_t
 partial_checksum(uint32_t sum, const uint8_t *buf, uint32_t size) {
+
 	int i;
 
 	if (size) {
@@ -48,6 +50,7 @@ partial_checksum(uint32_t sum, const uint8_t *buf, uint32_t size) {
 
 uint16_t
 finalize_checksum(uint32_t sum, const uint8_t *buf, uint32_t size) {
+
 	sum = partial_checksum(sum, buf, size);
 
 	while (sum >> 16) {

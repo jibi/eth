@@ -42,6 +42,7 @@ struct nm_desc *netmap;
 
 void
 init_netmap(char *ifname) {
+
 	char _ifname[IFNAMSIZ + 7];
 
 	sprintf(_ifname, "netmap:%s", ifname);
@@ -54,6 +55,7 @@ init_netmap(char *ifname) {
 
 static inline void
 process_packet(char *buf, size_t len) {
+
 	packet_t p;
 	socket_t s;
 
@@ -68,6 +70,7 @@ process_packet(char *buf, size_t len) {
 
 void
 nm_loop() {
+
 	while (1) {
 		struct pollfd recv_fds, send_fds;
 		struct netmap_ring *recv_ring, *send_ring;
@@ -134,6 +137,7 @@ nm_loop() {
 
 int
 nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
+
 	struct netmap_ring *ring;
 	int i, idx;
 
@@ -156,6 +160,7 @@ nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
 
 int
 nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
+
 	struct pollfd fds;
 
 	fds.fd     = NETMAP_FD(netmap);
@@ -168,6 +173,7 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 
 void
 nm_send_packet(void *packet, uint16_t packet_len) {
+
 	nm_tx_desc_t tx_desc;
 
 	nm_get_tx_buff(&tx_desc);
@@ -177,9 +183,9 @@ nm_send_packet(void *packet, uint16_t packet_len) {
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 }
 
-
 void
 nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t data_len) {
+
 	nm_tx_desc_t tx_desc;
 
 	nm_get_tx_buff(&tx_desc);

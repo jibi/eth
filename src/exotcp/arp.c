@@ -49,7 +49,8 @@ struct {
 
 static void
 init_prebuild_arp_packet() {
-	memcpy(prebuild_arp_packet.eth.src_addr, &mac_addr, sizeof(struct ether_addr));
+
+	init_eth_packet(&prebuild_arp_packet.eth, ETH_TYPE_ARP);
 
 	prebuild_arp_packet.arp.hw_type        = ARP_HW_TYPE_ETHERNET;
 	prebuild_arp_packet.arp.proto_type     = ARP_PROTO_TYPE_IP;
@@ -63,12 +64,15 @@ init_prebuild_arp_packet() {
 
 void
 init_arp() {
+
 	init_prebuild_arp_packet();
 }
 
-void
+static void
 process_arp_request() {
-	memcpy(prebuild_arp_packet.eth.dst_addr, cur_pkt->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
+
+	setup_eth_hdr(&prebuild_arp_packet.eth);
+
 	memcpy(prebuild_arp_packet.arp.target_hw_addr, cur_pkt->arp_hdr->sender_hw_addr, sizeof(struct ether_addr));
 	memcpy(prebuild_arp_packet.arp.target_proto_addr, cur_pkt->arp_hdr->sender_proto_addr, sizeof(struct in_addr));
 
@@ -77,9 +81,10 @@ process_arp_request() {
 
 void
 process_arp() {
+
 	cur_pkt->arp_hdr = (arp_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 
-	if (cur_pkt->arp_hdr->opcode == ARP_OPCODE_REQUEST) {
+	if (likely(cur_pkt->arp_hdr->opcode == ARP_OPCODE_REQUEST)) {
 		process_arp_request();
 	}
 }

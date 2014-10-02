@@ -31,6 +31,7 @@
 
 static void
 field(eth_parser_t* hp, const char *field, size_t flen, const char *value, size_t vlen) {
+
 //	printf("field:\n\tname:\t%.*s\n\tvalue:\t%.*s\n",  (int)flen, field,  (int)vlen, value);
 }
 
@@ -38,31 +39,37 @@ static void
 method(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->method, "%.*s", (int) length, at);
 
+
 }
 
 static void
 uri(eth_parser_t* hp, const char *at, size_t length) {
+
 	asprintf(&hp->uri, "%.*s", (int) length, at);
 }
 
 static void
 fragment(eth_parser_t* hp, const char *at, size_t length) {
+
 	//printf("frag:\t\t%.*s\n", (int) length, at);
 }
 
 static void
 path(eth_parser_t* hp, const char *at, size_t length) {
+
 	asprintf(&hp->path, "%.*s", (int) length, at);
 }
 
 static void
 query(eth_parser_t* hp, const char *at, size_t length) {
+
 	asprintf(&hp->query, "%.*s", (int) length, at);
 
 }
 
 static void
 version(eth_parser_t* hp, const char *at, size_t length) {
+
 	asprintf(&hp->version, "%.*s", (int) length, at);
 
 }
@@ -74,6 +81,7 @@ header_done(eth_parser_t* hp, const char *at, size_t length) {
 
 eth_parser_t *
 new_eth_parser() {
+
 	eth_parser_t *parser = malloc(sizeof(eth_parser_t));
 
 	parser->field_cb       = field;
@@ -85,11 +93,11 @@ new_eth_parser() {
 	parser->version_cb     = version;
 	parser->header_done_cb = header_done;
 
-	parser->method      = NULL;
-	parser->uri         = NULL;
-	parser->path        = NULL;
-	parser->query       = NULL;
-	parser->version     = NULL;
+	parser->method         = NULL;
+	parser->uri            = NULL;
+	parser->path           = NULL;
+	parser->query          = NULL;
+	parser->version        = NULL;
 
 	eth_parser_init(parser);
 
@@ -98,23 +106,28 @@ new_eth_parser() {
 
 void
 delete_eth_parser(eth_parser_t *p) {
-	if (p->method)
+
+	if (p->method) {
 		free(p->method);
+	}
 
-	if (p->uri)
+	if (p->uri) {
 		free(p->uri);
+	}
 
-	if (p->path)
+	if (p->path) {
 		free(p->path);
+	}
 
-	if (p->query)
+	if (p->query) {
 		free(p->query);
+	}
 
-	if (p->version)
+	if (p->version) {
 		free(p->version);
+	}
 
 	free(p);
-
 }
 
 /*
@@ -122,6 +135,7 @@ delete_eth_parser(eth_parser_t *p) {
  */
 void
 test_response(http_response_t *response) {
+
 	char *body;
 
 	asprintf(&body,
@@ -130,7 +144,11 @@ test_response(http_response_t *response) {
 		"method: %s\n"
 		"uri:    %s\n"
 		"path:   %s\n"
-		"query:  %s\n", response->parser->method, response->parser->uri, response->parser->path, response->parser->query);
+		"query:  %s\n",
+		response->parser->method,
+		response->parser->uri,
+		response->parser->path,
+		response->parser->query);
 
 
 	asprintf(&response->header_buf,
@@ -150,6 +168,7 @@ test_response(http_response_t *response) {
 
 void
 build_404(http_response_t *response) {
+
 	char *body = "<h1>404 Not Found :(<h1>";
 
 	asprintf(&response->header_buf,
@@ -167,6 +186,7 @@ build_404(http_response_t *response) {
 
 void
 eth_http_response(http_response_t *response) {
+
 	char *path;
 	char *wd = getcwd(NULL, 0);
 	struct stat stat;
@@ -197,6 +217,7 @@ eth_http_response(http_response_t *response) {
 
 void
 handle_http_request(tcp_conn_t *conn) {
+
 	http_response_t *response;
 
 	if (!conn->http_response) {
@@ -225,12 +246,13 @@ handle_http_request(tcp_conn_t *conn) {
 
 int
 http_res_has_header_to_send(http_response_t *res) {
-	return res->header_len - res->header_pos;
 
+	return res->header_len - res->header_pos;
 }
 
 int
 http_res_has_file_to_send(http_response_t *res) {
+
 	return res->file_len - res->file_pos;
 }
 

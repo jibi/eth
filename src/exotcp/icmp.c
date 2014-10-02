@@ -45,6 +45,7 @@ struct {
 
 static uint16_t
 icmp_echo_rpl_checksum(icmp_echo_rpl_hdr_t *icmp_echo_req_hdr, void *data, uint32_t data_len) {
+
 	uint32_t sum = 0;
 
 	icmp_echo_req_hdr->checksum = 0;
@@ -57,6 +58,7 @@ icmp_echo_rpl_checksum(icmp_echo_rpl_hdr_t *icmp_echo_req_hdr, void *data, uint3
 
 static void
 init_prebuild_icmp_packet() {
+
 	init_eth_packet(&prebuild_icmp_packet.eth, ETH_TYPE_IPV4);
 	init_ip_packet(&prebuild_icmp_packet.ip, 0, IP_PROTO_ICMP);
 
@@ -66,11 +68,13 @@ init_prebuild_icmp_packet() {
 
 void
 init_icmp() {
+
 	init_prebuild_icmp_packet();
 }
 
-void
+static void
 process_icmp_echo_request() {
+
 	uint8_t      *data;
 	uint16_t     data_len;
 
@@ -89,6 +93,7 @@ process_icmp_echo_request() {
 
 void
 process_icmp() {
+
 	cur_pkt->icmp_echo_req_hdr = (icmp_echo_req_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
 
 	if (cur_pkt->icmp_echo_req_hdr->type == ICMP_TYPE_ECHO_REQ) {

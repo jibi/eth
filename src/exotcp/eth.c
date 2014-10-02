@@ -27,6 +27,8 @@
 #include <netinet/ether.h>
 
 #include <eth.h>
+#include <eth/log.h>
+
 #include <eth/exotcp.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/arp.h>
@@ -37,27 +39,30 @@ unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
 void
 init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type) {
+
 	memcpy(eth_hdr->src_addr, &mac_addr, sizeof(struct ether_addr));
 	eth_hdr->mac_type = eth_type;
 }
 
 void
 setup_eth_hdr(eth_hdr_t *eth_hdr) {
+
 	memcpy(eth_hdr->dst_addr, cur_sock->src_mac, sizeof(struct ether_addr));
 }
 
 void
 process_eth() {
+
 	cur_pkt->eth_hdr  = (eth_hdr_t *) cur_pkt->buf;
 	memcpy(cur_sock->src_mac,cur_pkt->eth_hdr->src_addr, sizeof(struct ether_addr));
 
 	if (unlikely(!(is_this_card_mac((struct ether_addr *) cur_pkt->eth_hdr->dst_addr) ||
 		is_broadcast_addr((struct ether_addr *) cur_pkt->eth_hdr->dst_addr)))) {
-		printf("this is not the packet you are looking for\n");
+		log_debug1("this is not the packet you are looking for\n");
 		return;
 	}
 
-	if (cur_pkt->eth_hdr->mac_type == ETH_TYPE_IPV4) {
+	if (likely(cur_pkt->eth_hdr->mac_type == ETH_TYPE_IPV4)) {
 		process_ip();
 	} else if (cur_pkt->eth_hdr->mac_type == ETH_TYPE_ARP) {
 		process_arp();
@@ -66,6 +71,7 @@ process_eth() {
 
 int
 is_broadcast_addr(struct ether_addr *a) {
+
 	return ! memcmp(a, broadcast_addr, sizeof(struct ether_addr));
 }
 

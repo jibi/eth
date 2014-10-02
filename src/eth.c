@@ -26,6 +26,7 @@
 
 void
 usage() {
+
 	printf("usage: eth [options]\n");
 	printf("options are:\n");
 	printf("  --dev [device]:    the device name\n");
@@ -36,6 +37,7 @@ usage() {
 
 int
 main(int argc, char *argv[]) {
+
 	char *dev, *mac, *ip;
 	uint16_t port;
 

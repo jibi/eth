@@ -29,25 +29,26 @@
 
 void
 init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto) {
-	ip_hdr->version          = 4;
-	ip_hdr->hdr_len          = 5;
-	ip_hdr->tos              = 0;
 
+	ip_hdr->version     = 4;
+	ip_hdr->hdr_len     = 5;
+	ip_hdr->tos         = 0;
 	/*
 	 * data_len is the ip payload length.
 	 * For example, given a TCP ack packet it should be sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t),
 	 */
-	ip_hdr->total_len        = HTONS(sizeof(ip_hdr_t) + data_len);
-	ip_hdr->id               = 0;
-	ip_hdr->frag_offset      = HTONS(0x4000); /* dont fragment */
-	ip_hdr->ttl              = 64;
-	ip_hdr->proto            = proto;
+	ip_hdr->total_len   = HTONS(sizeof(ip_hdr_t) + data_len);
+	ip_hdr->id          = 0;
+	ip_hdr->frag_offset = HTONS(0x4000); /* dont fragment */
+	ip_hdr->ttl         = 64;
+	ip_hdr->proto       = proto;
 
 	memcpy(&ip_hdr->src_addr, &ip_addr, sizeof(struct in_addr));
 }
 
 void
 setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len) {
+
 	ip_hdr->dst_addr = cur_sock->src_ip;
 
 	if (new_data_len) {
@@ -59,6 +60,7 @@ setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len) {
 
 void
 process_ip() {
+
 	cur_pkt->ip_hdr = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;
 
@@ -76,6 +78,7 @@ process_ip() {
 
 void
 ip_checksum(ip_hdr_t *ip_hdr) {
+
 	ip_hdr->checksum = 0;
 	ip_hdr->checksum = checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
 }

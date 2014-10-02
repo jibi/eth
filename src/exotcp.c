@@ -30,11 +30,13 @@
 struct ether_addr mac_addr;
 struct in_addr    ip_addr;
 uint16_t          listening_port;
+
 packet_t          *cur_pkt;
 socket_t          *cur_sock;
 
 void
 init_exotcp(char *mac, char *ip, uint16_t port) {
+
 	ether_aton_r(mac, &mac_addr);
 	inet_aton(ip, &ip_addr);
 	listening_port = port;
@@ -46,11 +48,13 @@ init_exotcp(char *mac, char *ip, uint16_t port) {
 
 int
 is_this_card_mac(struct ether_addr *addr) {
+
 	return ! memcmp(&mac_addr, addr, sizeof(struct ether_addr));
 }
 
 int
 is_this_card_ip(struct in_addr *addr) {
+
 	return ! memcmp(&ip_addr, addr, sizeof(struct in_addr));
 }
 
