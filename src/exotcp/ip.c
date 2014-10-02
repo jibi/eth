@@ -25,13 +25,19 @@
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>
+#include <eth/exotcp/icmp.h>
 
 void
-init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len) {
+init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len) {
 	ip_hdr->version          = 4;
 	ip_hdr->hdr_len          = 5;
 	ip_hdr->tos              = 0;
-	ip_hdr->total_len        = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + opt_len);
+
+	/*
+	 * data_len is the ip payload length.
+	 * For example, given a TCP ack packet it should be sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t),
+	 */
+	ip_hdr->total_len        = HTONS(sizeof(ip_hdr_t) + data_len);
 	ip_hdr->id               = 0;
 	ip_hdr->frag_offset      = HTONS(0x4000); /* dont fragment */
 	ip_hdr->ttl              = 64;
@@ -41,11 +47,11 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len) {
 }
 
 void
-setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t payload_len) {
+setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len) {
 	ip_hdr->dst_addr = cur_sock->src_ip;
 
-	if (payload_len) {
-		ip_hdr->total_len = HTONS(sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + payload_len);
+	if (new_data_len) {
+		ip_hdr->total_len = HTONS(sizeof(ip_hdr_t) + new_data_len);
 	}
 
 	ip_checksum(ip_hdr);
@@ -63,12 +69,14 @@ process_ip() {
 
 	if (cur_pkt->ip_hdr->proto == IP_PROTO_TCP) {
 		process_tcp();
+	} else if (cur_pkt->ip_hdr->proto == IP_PROTO_ICMP) {
+		process_icmp();
 	}
 }
 
 void
 ip_checksum(ip_hdr_t *ip_hdr) {
-	ip_hdr->check = 0;
-	ip_hdr->check = checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
+	ip_hdr->checksum = 0;
+	ip_hdr->checksum = checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
 }
 

@@ -167,12 +167,25 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 }
 
 void
-nm_send_packet(void *buf, uint16_t len) {
+nm_send_packet(void *packet, uint16_t packet_len) {
 	nm_tx_desc_t tx_desc;
 
 	nm_get_tx_buff(&tx_desc);
-	memcpy(tx_desc.buf, buf, len);
-	*tx_desc.len = len;
+	memcpy(tx_desc.buf, packet, packet_len);
+	*tx_desc.len = packet_len;
+
+	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+}
+
+
+void
+nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t data_len) {
+	nm_tx_desc_t tx_desc;
+
+	nm_get_tx_buff(&tx_desc);
+	memcpy(tx_desc.buf, packet, packet_len);
+	memcpy(tx_desc.buf + packet_len, data, data_len);
+	*tx_desc.len = packet_len + data_len;
 
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
 }

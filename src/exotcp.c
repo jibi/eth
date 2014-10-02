@@ -24,6 +24,7 @@
 #include <eth/exotcp.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/arp.h>
+#include <eth/exotcp/icmp.h>
 #include <eth/exotcp/tcp.h>
 
 struct ether_addr mac_addr;
@@ -39,6 +40,7 @@ init_exotcp(char *mac, char *ip, uint16_t port) {
 	listening_port = port;
 
 	init_arp();
+	init_icmp();
 	init_tcp();
 }
 

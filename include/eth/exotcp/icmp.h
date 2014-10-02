@@ -16,26 +16,40 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef _ETH_NETMAP_H
-#define _ETH_NETMAP_H
+#ifndef _ETH_EXOTCP_ICMP_H
+#define _ETH_EXOTCP_ICMP_H
 
-#define NETMAP_WITH_LIBS
-#include <net/netmap_user.h>
+#include <stdint.h>
 
-typedef struct netmap_tx_ring_desc_s {
-	char *buf;
-	int  i;
-	uint16_t  *len;
-} nm_tx_desc_t;
+#include <eth/exotcp.h>
+#include <eth/exotcp/ip.h>
 
-extern struct nm_desc *netmap;
+typedef struct icmp_echo_req_hdr_s {
+	uint8_t  type;
+	uint8_t  code;
+	uint16_t checksum;
 
-void init_netmap(char *ifname);
-void nm_loop();
-int nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc);
-int nm_get_tx_buff(nm_tx_desc_t *tx_desc);
-void nm_send_packet(void *packet, uint16_t packet_len);
-void nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t data_len);
+	uint16_t id;
+	uint16_t seq;
+} __attribute__ ((packed)) icmp_echo_req_hdr_t;
+
+#define icmp_echo_req_data(x)     (((uint8_t *) x->icmp_echo_req_hdr) + sizeof(icmp_echo_req_hdr_t))
+#define icmp_echo_req_data_len(x) (ip_data_len(x->ip_hdr) - sizeof(icmp_echo_req_hdr_t))
+
+typedef struct icmp_echo_rpl_hdr_s {
+	uint8_t  type;
+	uint8_t  code;
+	uint16_t checksum;
+
+	uint16_t id;
+	uint16_t seq;
+} __attribute__ ((packed)) icmp_echo_rpl_hdr_t;
+
+#define ICMP_TYPE_ECHO_RPL 0
+#define ICMP_TYPE_ECHO_REQ 8
+
+void init_icmp();
+void process_icmp();
 
 #endif
 

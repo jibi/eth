@@ -161,7 +161,7 @@ void
 init_syn_ack_tcp_packet() {
 
 	init_eth_packet(&syn_ack_tcp_packet.eth);
-	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_syn_ack_opts_t));
+	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t));
 	init_tcp_packet_header(&syn_ack_tcp_packet.tcp, sizeof(tcp_syn_ack_opts_t), TCP_FLAG_SYN | TCP_FLAG_ACK);
 
 	/* TODO: negotiate MSS */
@@ -178,7 +178,7 @@ void
 init_ack_tcp_packet() {
 
 	init_eth_packet(&ack_tcp_packet.eth);
-	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_ack_opts_t));
+	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t));
 	init_tcp_packet_header(&ack_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK);
 
 	ack_tcp_packet.opts = (tcp_ack_opts_t) {
@@ -192,7 +192,7 @@ void
 init_data_tcp_packet() {
 
 	init_eth_packet(&data_tcp_packet.eth);
-	init_ip_packet(&data_tcp_packet.ip, sizeof(tcp_data_opts_t));
+	init_ip_packet(&data_tcp_packet.ip, 0);
 	init_tcp_packet_header(&data_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_PSH);
 
 	data_tcp_packet.opts = (tcp_data_opts_t) {
@@ -206,7 +206,7 @@ void
 init_fin_ack_tcp_packet() {
 
 	init_eth_packet(&fin_ack_tcp_packet.eth);
-	init_ip_packet(&fin_ack_tcp_packet.ip, sizeof(tcp_fin_ack_opts_t));
+	init_ip_packet(&fin_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t));
 	init_tcp_packet_header(&fin_ack_tcp_packet.tcp, sizeof(tcp_fin_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_FIN);
 
 	fin_ack_tcp_packet.opts = (tcp_fin_ack_opts_t) {
@@ -220,7 +220,7 @@ void
 init_rst_tcp_packet() {
 
 	init_eth_packet(&rst_tcp_packet.eth);
-	init_ip_packet(&rst_tcp_packet.ip, 0);
+	init_ip_packet(&rst_tcp_packet.ip, sizeof(tcp_hdr_t));
 	init_tcp_packet_header(&rst_tcp_packet.tcp, 0, TCP_FLAG_ACK | TCP_FLAG_RST);
 }
 
@@ -345,7 +345,7 @@ send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len) {
 	log_debug1("send tcp data packet");
 
 	setup_eth_hdr(&data_tcp_packet.eth);
-	setup_ip_hdr(&data_tcp_packet.ip, len);
+	setup_ip_hdr(&data_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
 	setup_tcp_hdr(&data_tcp_packet.tcp, conn);
 
 	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
@@ -500,7 +500,7 @@ void
 process_tcp_segment(tcp_conn_t *conn) {
 
 	char *payload;
-	uint16_t  len = (ntohs(cur_pkt->ip_hdr->total_len) - sizeof(ip_hdr_t) - (cur_pkt->tcp_hdr->data_offset * 4));
+	uint16_t  len = tcp_payload_len(cur_pkt); //(ip_payload_len(cur_pkt->ip_hdr) - (cur_pkt->tcp_hdr->data_offset * 4));
 
 	parse_tcp_options(cur_pkt->tcp_hdr, conn);
 

@@ -33,12 +33,15 @@ typedef struct ip_hdr_s {
 	uint16_t frag_offset;
 	uint8_t  ttl;
 	uint8_t  proto;
-	uint16_t check;
+	uint16_t checksum;
 	uint32_t src_addr;
 	uint32_t dst_addr;
 } __attribute__ ((packed)) ip_hdr_t;
 
-#define IP_PROTO_TCP 0x6
+#define IP_PROTO_ICMP 0x1
+#define IP_PROTO_TCP  0x6
+
+#define ip_data_len(ip_hdr) (ntohs(ip_hdr->total_len) - sizeof(ip_hdr_t))
 
 void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t opt_len);
 void setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t payload_len);

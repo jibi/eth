@@ -41,7 +41,10 @@ typedef struct packet_s {
 		struct arp_hdr_s *arp_hdr;
 	};
 
-	struct tcp_hdr_s *tcp_hdr;
+	union {
+		struct tcp_hdr_s *tcp_hdr;
+		struct icmp_echo_req_hdr_s *icmp_echo_req_hdr;
+	};
 
 	char *buf;
 	size_t len;

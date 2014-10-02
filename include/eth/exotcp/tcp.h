@@ -126,6 +126,8 @@ typedef tcp_ts_opts_t tcp_fin_ack_opts_t;
 #define TCP_DATA_PACKET_PAYLOAD(x) (x + sizeof(eth_hdr_t) + sizeof(ip_hdr_t) + sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t))
 #define TCP_WINDOW_SIZE 0x4000
 
+#define tcp_payload_len(x) (ip_data_len(x->ip_hdr) - (x->tcp_hdr->data_offset * 4))
+
 /*
  * from RFC 6691:
  *
