@@ -36,9 +36,9 @@
 unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
 void
-init_eth_packet(eth_hdr_t *eth_hdr) {
+init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type) {
 	memcpy(eth_hdr->src_addr, &mac_addr, sizeof(struct ether_addr));
-	eth_hdr->mac_type = ETH_TYPE_IPV4;
+	eth_hdr->mac_type = eth_type;
 }
 
 void

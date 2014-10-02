@@ -57,10 +57,8 @@ icmp_echo_rpl_checksum(icmp_echo_rpl_hdr_t *icmp_echo_req_hdr, void *data, uint3
 
 static void
 init_prebuild_icmp_packet() {
-	init_eth_packet(&prebuild_icmp_packet.eth);
-	init_ip_packet(&prebuild_icmp_packet.ip, 0);
-
-	prebuild_icmp_packet.ip.proto = IP_PROTO_ICMP;
+	init_eth_packet(&prebuild_icmp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&prebuild_icmp_packet.ip, 0, IP_PROTO_ICMP);
 
 	prebuild_icmp_packet.icmp.type = ICMP_TYPE_ECHO_RPL;
 	prebuild_icmp_packet.icmp.code = 0;

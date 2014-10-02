@@ -160,8 +160,8 @@ setup_tcp_hdr(tcp_hdr_t *hdr, tcp_conn_t *conn) {
 void
 init_syn_ack_tcp_packet() {
 
-	init_eth_packet(&syn_ack_tcp_packet.eth);
-	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t));
+	init_eth_packet(&syn_ack_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t), IP_PROTO_TCP);
 	init_tcp_packet_header(&syn_ack_tcp_packet.tcp, sizeof(tcp_syn_ack_opts_t), TCP_FLAG_SYN | TCP_FLAG_ACK);
 
 	/* TODO: negotiate MSS */
@@ -177,8 +177,8 @@ init_syn_ack_tcp_packet() {
 void
 init_ack_tcp_packet() {
 
-	init_eth_packet(&ack_tcp_packet.eth);
-	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t));
+	init_eth_packet(&ack_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t), IP_PROTO_TCP);
 	init_tcp_packet_header(&ack_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK);
 
 	ack_tcp_packet.opts = (tcp_ack_opts_t) {
@@ -191,8 +191,8 @@ init_ack_tcp_packet() {
 void
 init_data_tcp_packet() {
 
-	init_eth_packet(&data_tcp_packet.eth);
-	init_ip_packet(&data_tcp_packet.ip, 0);
+	init_eth_packet(&data_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&data_tcp_packet.ip, 0, IP_PROTO_TCP);
 	init_tcp_packet_header(&data_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_PSH);
 
 	data_tcp_packet.opts = (tcp_data_opts_t) {
@@ -205,8 +205,8 @@ init_data_tcp_packet() {
 void
 init_fin_ack_tcp_packet() {
 
-	init_eth_packet(&fin_ack_tcp_packet.eth);
-	init_ip_packet(&fin_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t));
+	init_eth_packet(&fin_ack_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&fin_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t), IP_PROTO_TCP);
 	init_tcp_packet_header(&fin_ack_tcp_packet.tcp, sizeof(tcp_fin_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_FIN);
 
 	fin_ack_tcp_packet.opts = (tcp_fin_ack_opts_t) {
@@ -219,8 +219,8 @@ init_fin_ack_tcp_packet() {
 void
 init_rst_tcp_packet() {
 
-	init_eth_packet(&rst_tcp_packet.eth);
-	init_ip_packet(&rst_tcp_packet.ip, sizeof(tcp_hdr_t));
+	init_eth_packet(&rst_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&rst_tcp_packet.ip, sizeof(tcp_hdr_t), IP_PROTO_TCP);
 	init_tcp_packet_header(&rst_tcp_packet.tcp, 0, TCP_FLAG_ACK | TCP_FLAG_RST);
 }
 

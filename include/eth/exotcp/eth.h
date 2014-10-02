@@ -40,7 +40,7 @@ typedef struct eth_hdr_s {
 
 #define ETH_MTU (1500 + sizeof(eth_hdr_t))
 
-void init_eth_packet(eth_hdr_t *eth_hdr);
+void init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type);
 void setup_eth_hdr(eth_hdr_t *eth_hdr);
 void process_eth();
 int is_broadcast_addr(struct ether_addr *a);

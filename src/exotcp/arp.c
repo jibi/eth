@@ -50,7 +50,6 @@ struct {
 static void
 init_prebuild_arp_packet() {
 	memcpy(prebuild_arp_packet.eth.src_addr, &mac_addr, sizeof(struct ether_addr));
-	prebuild_arp_packet.eth.mac_type       = ETH_TYPE_ARP;
 
 	prebuild_arp_packet.arp.hw_type        = ARP_HW_TYPE_ETHERNET;
 	prebuild_arp_packet.arp.proto_type     = ARP_PROTO_TYPE_IP;

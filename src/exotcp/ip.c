@@ -28,7 +28,7 @@
 #include <eth/exotcp/icmp.h>
 
 void
-init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len) {
+init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto) {
 	ip_hdr->version          = 4;
 	ip_hdr->hdr_len          = 5;
 	ip_hdr->tos              = 0;
@@ -41,7 +41,7 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len) {
 	ip_hdr->id               = 0;
 	ip_hdr->frag_offset      = HTONS(0x4000); /* dont fragment */
 	ip_hdr->ttl              = 64;
-	ip_hdr->proto            = IP_PROTO_TCP;
+	ip_hdr->proto            = proto;
 
 	memcpy(&ip_hdr->src_addr, &ip_addr, sizeof(struct in_addr));
 }
