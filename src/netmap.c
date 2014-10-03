@@ -38,7 +38,10 @@
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
 
+#include <eth/datastruct/list.h>
+
 struct nm_desc *netmap;
+list_head_t    *nm_tcp_conn_list;
 
 void
 init_netmap(char *ifname) {
@@ -51,6 +54,8 @@ init_netmap(char *ifname) {
 	if (!netmap) {
 		fatal_tragedy(1, "Cannot open netmap device");
 	}
+
+	nm_tcp_conn_list = list_new();
 }
 
 static inline void
@@ -79,8 +84,7 @@ nm_loop() {
 		bool has_data_to_send = true;
 		bool resume_loop = false;
 
-		GHashTableIter iter;
-		gpointer key, value;
+		tcp_conn_t *conn;
 
 		recv_fds.fd     = NETMAP_FD(netmap);
 		recv_fds.events = POLLIN;
@@ -109,14 +113,14 @@ nm_loop() {
 
 		while (!nm_ring_empty(send_ring) && has_data_to_send) {
 			if (unlikely(!resume_loop)) {
-				g_hash_table_iter_init (&iter, tcb_hash);
+				conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
 			}
 
 			resume_loop      = false;
 			has_data_to_send = false;
 
-			while (g_hash_table_iter_next (&iter, &key, &value)) {
-				tcp_conn_t *conn = value;
+			tcp_conn_t *n;
+			list_for_each_entry_from(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
 				set_cur_sock(conn->sock);
 
 				if (unlikely(nm_ring_empty(send_ring))) {

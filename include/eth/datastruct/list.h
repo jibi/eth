@@ -18,6 +18,9 @@
 
 /* based on the Linux kernel list.h */
 
+#ifndef _ETH_DATASTRUCT_LIST
+#define _ETH_DATASTRUCT_LIST
+
 #include <stddef.h>
 
 typedef struct list_head_s {
@@ -33,7 +36,7 @@ void list_add_tail(list_head_t *entry, list_head_t *head);
 void list_del(list_head_t *entry);
 
 #define list_entry(ptr, type, member) \
-	({ const typeof( ((type *)0)->member ) *__mptr = (ptr); (type *)( (char *)__mptr - offsetof(type,member) );})
+	__extension__({ const typeof( ((type *)0)->member ) *__mptr = (ptr); (type *)( (char *)__mptr - offsetof(type,member) );})
 #define list_first_entry(ptr, type, member) \
 	list_entry((ptr)->next, type, member)
 #define list_next_entry(pos, member) \
@@ -54,4 +57,6 @@ void list_del(list_head_t *entry);
 	for (n = list_next_entry(pos, member);         \
 	&pos->member != (head);                        \
 	pos = n, n = list_next_entry(n, member))
+
+#endif
 

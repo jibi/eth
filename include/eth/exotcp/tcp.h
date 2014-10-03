@@ -29,6 +29,8 @@ typedef struct http_response_s http_response_t;
 #include <eth/exotcp.h>
 #include <eth/http11.h>
 
+#include <eth/datastruct/list.h>
+
 #include <glib.h>
 
 #define NETMAP_WITH_LIBS
@@ -163,6 +165,8 @@ typedef struct tcp_conn_key_s {
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
+	list_head_t     nm_tcp_conn_list_head;
+
 	socket_t       *sock;
 
 	uint32_t last_recv_byte;

@@ -431,6 +431,7 @@ new_tcp_conn(packet_t *p) {
 	conn->http_response   = NULL;
 
 	g_hash_table_insert(tcb_hash, conn->key, conn);
+	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
 
 	return conn;
 }
@@ -439,6 +440,11 @@ void
 delete_tcp_conn(tcp_conn_t *conn) {
 
 	g_hash_table_remove(tcb_hash, conn->key);
+
+	/* TODO:
+	 * check this is not the current connection on which nm send loop is
+	 * iterating on */
+	list_del(&conn->nm_tcp_conn_list_head);
 
 	free(conn->key);
 	free(conn);

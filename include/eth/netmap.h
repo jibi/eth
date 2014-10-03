@@ -22,13 +22,17 @@
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
 
-typedef struct netmap_tx_ring_desc_s {
+#include <eth/datastruct/list.h>
+#include <eth/exotcp/tcp.h>
+
+typedef struct nm_tx_ring_desc_s {
 	char *buf;
 	int  i;
 	uint16_t  *len;
 } nm_tx_desc_t;
 
 extern struct nm_desc *netmap;
+extern list_head_t    *nm_tcp_conn_list;
 
 void init_netmap(char *ifname);
 void nm_loop();
