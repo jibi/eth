@@ -22,22 +22,23 @@
 #include <stdint.h>
 #include <eth.h>
 
+#include <eth/datastruct/list.h>
+
 typedef bool(key_cmp_func_t)(void *, void*);
 typedef uint32_t(hash_func_t)(void *);
 
-typedef struct hash_item {
-	struct hash_item *prev;
-	struct hash_item *next;
-
+typedef struct hash_item_s {
 	void *key;
 	void *val;
-} hash_item;
+
+	list_head_t list_head;
+} hash_item_t;
 
 typedef struct hash_table_s {
 	uint32_t m; /* linked list max length */
 	uint32_t n; /* linked list cur length */
 
-	hash_item **A;
+	list_head_t    **bins;
 	hash_func_t    *hash_func;
 	key_cmp_func_t *key_comp_func;
 } hash_table_t;
