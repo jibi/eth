@@ -125,7 +125,6 @@ get_tcp_clock(tcp_conn_t *conn) {
 	return clock;
 }
 
-
 //returns x - y taking account of the wraparound
 static inline int
 cmp_seq(uint32_t x, uint32_t y) {
@@ -399,7 +398,16 @@ send_tcp_rst(tcp_conn_t *conn) {
 
 void
 send_tcp_rst_without_conn() {
-	//send_tcp_rst(conn);
+	/*
+	 * build a fake conn to make send_tcp_rst happy
+	 */
+	tcp_conn_t conn;
+
+	conn.last_recv_byte = ntohl(cur_pkt->tcp_hdr->seq);
+	conn.last_sent_byte = 1;
+	conn.data_len       = 0;
+
+	send_tcp_rst(&conn);
 }
 
 tcp_conn_t *
