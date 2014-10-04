@@ -118,7 +118,7 @@ nm_loop() {
 			has_data_to_send = false;
 
 			tcp_conn_t *n;
-			list_for_each_entry_from(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
+			list_for_each_entry_safe_from(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
 				set_cur_sock(conn->sock);
 
 				if (unlikely(nm_ring_empty(send_ring))) {

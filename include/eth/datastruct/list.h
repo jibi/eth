@@ -42,18 +42,31 @@ void list_del(list_head_t *entry);
 #define list_next_entry(pos, member) \
 	list_entry((pos)->member.next, typeof(*(pos)), member)
 
-/* safe to delete while iterating */
-#define list_for_each_entry(pos, n, head, member)                                                  \
+#define list_for_each_entry(pos, head, member) \
+	for (pos = list_first_entry(head, typeof(*pos), member); \
+	&pos->member != (head); \
+	pos = list_next_entry(pos, member))
+
+#define list_for_each_entry_continue(pos, head, member) \
+	for (pos = list_next_entry(pos, member); \
+	&pos->member != (head); \
+	pos = list_next_entry(pos, member))
+
+#define list_for_each_entry_from(pos, head, member) \
+	for (; &pos->member != (head); \
+	pos = list_next_entry(pos, member))
+
+#define list_for_each_entry_safe(pos, n, head, member)                                                  \
 	for (pos = list_first_entry(head, typeof(*pos), member), n = list_next_entry(pos, member); \
 	&pos->member != (head);                                                                    \
 	pos = n, n = list_next_entry(n, member))
 
-#define list_for_each_entry_continue(pos, n, head, member)                         \
+#define list_for_each_entry_safe_continue(pos, n, head, member)                         \
 	for (pos = list_next_entry(pos, member), n = list_next_entry(pos, member); \
 	&pos->member != (head);                                                    \
 	pos = n, n = list_next_entry(n, member))
 
-#define list_for_each_entry_from(pos, n, head, member) \
+#define list_for_each_entry_safe_from(pos, n, head, member) \
 	for (n = list_next_entry(pos, member);         \
 	&pos->member != (head);                        \
 	pos = n, n = list_next_entry(n, member))
