@@ -4,11 +4,6 @@ A specialized web server with userspace TCP/IP stack.
 My undergraduate thesis work.
 
 ##Installation
-### Deps:
-
-* rake
-* clang
-* ragel
 
 ### Steps:
 clone the repo
@@ -18,13 +13,13 @@ $ git clone --recursive git@github.com:jibi/eth.git
 build dependencies (netmap)
 
 ```
-$ rake deps
+$ make deps
 ```
 
 build eth
 
 ```
-$ rake
+$ make
 ```
 
 load netmap module
