@@ -24,6 +24,9 @@
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
+#define MAX(a,b) __extension__({int _a = (a), _b = (b); _a > _b ? _a : _b; })
+#define MIN(a,b) __extension__({int _a = (a), _b = (b); _a < _b ? _a : _b; })
+
 typedef enum bool_e {
 	false,
 	true

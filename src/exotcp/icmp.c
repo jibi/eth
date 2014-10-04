@@ -26,8 +26,6 @@
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 
-#include <glib.h>
-
 #include <eth/netmap.h>
 
 #include <eth/exotcp.h>

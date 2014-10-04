@@ -27,7 +27,6 @@
 #include <sys/uio.h>
 
 #include <eth/log.h>
-
 #include <eth/netmap.h>
 
 #include <eth/exotcp.h>
@@ -35,20 +34,19 @@
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>
-#include <eth/exotcp/hash.h>
+
+#include <eth/datastruct/hash.h>
 
 #include <eth/http11.h>
 
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
 
-#include <glib.h>
-
 /*
  * TCP control block hash table:
  * this table is used to keep track of all TCP connections.
  */
-GHashTable *tcb_hash;
+hash_table_t *tcb_hash;
 
 /*
  * prebuilt packet: sent in the phase 2 of the TCP three way handshake
@@ -224,6 +222,16 @@ init_rst_tcp_packet() {
 	init_tcp_packet_header(&rst_tcp_packet.tcp, 0, TCP_FLAG_ACK | TCP_FLAG_RST);
 }
 
+bool
+cmp_tcp_conn(void *t1, void *t2) {
+	return !memcmp(t1, t2, sizeof(tcp_conn_key_t));
+}
+
+uint32_t
+tcp_key_hash_func(void *key) {
+	return murmur_hash(key, sizeof(tcp_conn_key_t), 0);
+}
+
 void
 init_tcp() {
 
@@ -235,7 +243,7 @@ init_tcp() {
 	init_fin_ack_tcp_packet();
 	init_rst_tcp_packet();
 
-	tcb_hash = g_hash_table_new(hash_tcp_conn, cmp_tcp_conn);
+	tcb_hash = hash_table_init(tcp_key_hash_func, cmp_tcp_conn);
 }
 
 void
@@ -430,7 +438,7 @@ new_tcp_conn(packet_t *p) {
 	conn->data_len        = 0;
 	conn->http_response   = NULL;
 
-	g_hash_table_insert(tcb_hash, conn->key, conn);
+	hash_table_insert(tcb_hash, conn->key, conn);
 	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
 
 	return conn;
@@ -439,7 +447,7 @@ new_tcp_conn(packet_t *p) {
 void
 delete_tcp_conn(tcp_conn_t *conn) {
 
-	g_hash_table_remove(tcb_hash, conn->key);
+	hash_table_remove(tcb_hash, conn->key);
 
 	/* TODO:
 	 * check this is not the current connection on which nm send loop is
@@ -490,7 +498,7 @@ get_tcp_conn(packet_t *p) {
 		.src_addr = p->ip_hdr->src_addr
 	};
 
-	return g_hash_table_lookup(tcb_hash, &key);
+	return hash_table_lookup(tcb_hash, &key);
 }
 
 void

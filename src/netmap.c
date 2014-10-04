@@ -33,8 +33,6 @@
 #include <eth/exotcp/tcp.h>
 #include <eth/netmap.h>
 
-#include <glib.h>
-
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
 

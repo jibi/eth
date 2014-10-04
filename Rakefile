@@ -22,8 +22,8 @@ require 'rake/clean'
 NAME    = 'eth'
 
 CC      = ENV['CC'] || 'gcc'
-CFLAGS  = ENV['CFLAGS'].to_s + " -Wall -pedantic -g -DDEBUG=1 -std=gnu11 -I ./include -I ./deps/netmap/sys `pkg-config --cflags glib-2.0`"
-LDFLAGS = ENV['LDFLAGS'].to_s + " `pkg-config --libs glib-2.0`"
+CFLAGS  = ENV['CFLAGS'].to_s + " -Wall -pedantic -g -DDEBUG=1 -std=gnu11 -I ./include -I ./deps/netmap/sys"
+LDFLAGS = ENV['LDFLAGS'].to_s
 
 PARSER  = FileList['src/*.rl']
 SOURCES = FileList['src/*.c'] + FileList['src/**/*c']

@@ -30,8 +30,7 @@ typedef struct http_response_s http_response_t;
 #include <eth/http11.h>
 
 #include <eth/datastruct/list.h>
-
-#include <glib.h>
+#include <eth/datastruct/hash.h>
 
 #define NETMAP_WITH_LIBS
 #include <net/netmap_user.h>
@@ -201,7 +200,7 @@ typedef struct tcp_conn_s {
 	http_response_t *http_response;
 } tcp_conn_t;
 
-extern GHashTable *tcb_hash;
+extern hash_table_t *tcb_hash;
 
 void init_tcp();
 void process_tcp();
