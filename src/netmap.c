@@ -41,13 +41,15 @@
 struct nm_desc *netmap;
 list_head_t    *nm_tcp_conn_list;
 
+static bool nm_has_data_to_send = false;
+
 void
 init_netmap(char *ifname) {
 
 	char _ifname[IFNAMSIZ + 7];
 
 	sprintf(_ifname, "netmap:%s", ifname);
-	netmap = nm_open(_ifname, NULL, NETMAP_NO_TX_POLL, 0);
+	netmap = nm_open(_ifname, NULL, 0, 0);
 
 	if (!netmap) {
 		fatal_tragedy(1, "Cannot open netmap device");
@@ -56,7 +58,8 @@ init_netmap(char *ifname) {
 	nm_tcp_conn_list = list_new();
 }
 
-static inline void
+static inline
+void
 process_packet(char *buf, size_t len) {
 
 	packet_t p;
@@ -71,69 +74,95 @@ process_packet(char *buf, size_t len) {
 	process_eth();
 }
 
+static inline
+void
+recv_packet(struct netmap_ring *recv_ring) {
+
+	unsigned int i, idx, len;
+	char *buf;
+
+	i   = recv_ring->cur;
+	idx = recv_ring->slot[i].buf_idx;
+
+	buf = NETMAP_BUF(recv_ring, idx);
+	len = recv_ring->slot[i].len;
+
+	process_packet(buf, len);
+
+	recv_ring->head = recv_ring->cur = nm_ring_next(recv_ring, i);
+
+}
+
+static inline
+void
+nm_sync_rx_tx_ring() {
+	struct pollfd nm_fds;
+	nm_fds.fd     = NETMAP_FD(netmap);
+	nm_fds.events = POLLIN | POLLOUT;
+
+	poll(&nm_fds, 1, nm_has_data_to_send ? -1 : 0);
+}
+
+static inline
+void
+nm_recv_loop() {
+
+	struct netmap_ring *recv_ring;
+
+	recv_ring = NETMAP_RXRING(netmap->nifp, 0);
+
+	while (!nm_ring_empty(recv_ring)) {
+		recv_packet(recv_ring);
+	}
+
+}
+
+static inline
+void
+nm_send_loop() {
+
+	struct netmap_ring *send_ring;
+	static bool resume_loop = false;
+
+	send_ring = NETMAP_TXRING(netmap->nifp, 0);
+
+	nm_has_data_to_send = true;
+	while (!nm_ring_empty(send_ring) && nm_has_data_to_send) {
+		tcp_conn_t *conn;
+
+		if (unlikely(!resume_loop)) {
+			conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
+		}
+
+		resume_loop         = false;
+		nm_has_data_to_send = false;
+
+		tcp_conn_t *n;
+		list_for_each_entry_safe_from(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
+			if (unlikely(nm_ring_empty(send_ring))) {
+				resume_loop = true;
+				break;
+			}
+
+			if (tcp_conn_has_data_to_send(conn)) {
+				set_cur_sock(conn->sock);
+
+				tcp_conn_send_data(conn);
+				nm_has_data_to_send = true;
+			}
+		}
+	}
+
+}
+
 void
 nm_loop() {
 
 	while (1) {
-		struct pollfd recv_fds, send_fds;
-		struct netmap_ring *recv_ring, *send_ring;
-		unsigned int i, idx, len;
-		char *buf;
-		bool has_data_to_send = true;
-		bool resume_loop = false;
+		nm_sync_rx_tx_ring();
 
-		tcp_conn_t *conn;
-
-		recv_fds.fd     = NETMAP_FD(netmap);
-		recv_fds.events = POLLIN;
-
-		poll(&recv_fds, 1, has_data_to_send ? -1 : 0);
-
-		recv_ring = NETMAP_RXRING(netmap->nifp, 0);
-
-		while (!nm_ring_empty(recv_ring)) {
-			i   = recv_ring->cur;
-			idx = recv_ring->slot[i].buf_idx;
-
-			buf = NETMAP_BUF(recv_ring, idx);
-			len = recv_ring->slot[i].len;
-
-			process_packet(buf, len);
-
-			recv_ring->head = recv_ring->cur = nm_ring_next(recv_ring, i);
-		}
-
-		send_fds.fd     = NETMAP_FD(netmap);
-		send_fds.events = POLLOUT;
-
-		poll(&send_fds, 1, -1);
-		send_ring = NETMAP_TXRING(netmap->nifp, 0);
-
-		while (!nm_ring_empty(send_ring) && has_data_to_send) {
-			if (unlikely(!resume_loop)) {
-				conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
-			}
-
-			resume_loop      = false;
-			has_data_to_send = false;
-
-			tcp_conn_t *n;
-			list_for_each_entry_safe_from(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
-				set_cur_sock(conn->sock);
-
-				if (unlikely(nm_ring_empty(send_ring))) {
-					resume_loop = true;
-					break;
-				}
-
-				if (tcp_conn_has_data_to_send(conn)) {
-					tcp_conn_send_data(conn);
-					has_data_to_send = true;
-				}
-			}
-		}
-
-		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+		nm_recv_loop();
+		nm_send_loop();
 	}
 }
 
