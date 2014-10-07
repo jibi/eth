@@ -38,21 +38,21 @@
 unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
 
 void
-init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type) {
-
+init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type)
+{
 	memcpy(eth_hdr->src_addr, &mac_addr, sizeof(struct ether_addr));
 	eth_hdr->mac_type = eth_type;
 }
 
 void
-setup_eth_hdr(eth_hdr_t *eth_hdr) {
-
+setup_eth_hdr(eth_hdr_t *eth_hdr)
+{
 	memcpy(eth_hdr->dst_addr, cur_sock->src_mac, sizeof(struct ether_addr));
 }
 
 void
-process_eth() {
-
+process_eth()
+{
 	cur_pkt->eth_hdr  = (eth_hdr_t *) cur_pkt->buf;
 	memcpy(cur_sock->src_mac,cur_pkt->eth_hdr->src_addr, sizeof(struct ether_addr));
 
@@ -69,9 +69,10 @@ process_eth() {
 	}
 }
 
+inline
 int
-is_broadcast_addr(struct ether_addr *a) {
-
+is_broadcast_addr(struct ether_addr *a)
+{
 	return ! memcmp(a, broadcast_addr, sizeof(struct ether_addr));
 }
 

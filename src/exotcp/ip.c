@@ -28,8 +28,8 @@
 #include <eth/exotcp/icmp.h>
 
 void
-init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto) {
-
+init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
+{
 	ip_hdr->version     = 4;
 	ip_hdr->hdr_len     = 5;
 	ip_hdr->tos         = 0;
@@ -47,8 +47,8 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto) {
 }
 
 void
-setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len) {
-
+setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len)
+{
 	ip_hdr->dst_addr = cur_sock->src_ip;
 
 	if (new_data_len) {
@@ -59,8 +59,8 @@ setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len) {
 }
 
 void
-process_ip() {
-
+process_ip()
+{
 	cur_pkt->ip_hdr = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;
 
@@ -77,8 +77,8 @@ process_ip() {
 }
 
 void
-ip_checksum(ip_hdr_t *ip_hdr) {
-
+ip_checksum(ip_hdr_t *ip_hdr)
+{
 	ip_hdr->checksum = 0;
 	ip_hdr->checksum = checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
 }

@@ -21,45 +21,49 @@
 #include <eth/datastruct/list.h>
 
 void
-init_list(list_head_t *l) {
-
+init_list(list_head_t *l)
+{
 	l->prev = l;
 	l->next = l;
 }
 
 list_head_t *
-list_new() {
-
+list_new()
+{
 	list_head_t *l = malloc(sizeof(list_head_t));
 	init_list(l);
 
 	return l;
 }
 
-static inline void
-__list_add(list_head_t *entry, list_head_t *prev, list_head_t *next) {
-
+static inline
+void
+__list_add(list_head_t *entry, list_head_t *prev, list_head_t *next)
+{
 	next->prev  = entry;
 	entry->next = next;
 	entry->prev = prev;
 	prev->next  = entry;
 }
 
+inline
 void
-list_add(list_head_t *entry, list_head_t *head) {
-
+list_add(list_head_t *entry, list_head_t *head)
+{
 	__list_add(entry, head, head->next);
 }
 
+inline
 void
-list_add_tail(list_head_t *entry, list_head_t *head) {
-
+list_add_tail(list_head_t *entry, list_head_t *head)
+{
 	__list_add(entry, head->prev, head);
 }
 
-inline void
-list_del(list_head_t *entry) {
-
+inline
+void
+list_del(list_head_t *entry)
+{
 	entry->next->prev = entry->prev;
 	entry->prev->next = entry->next;
 }

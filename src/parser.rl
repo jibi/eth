@@ -25,7 +25,8 @@
 #include <eth/http11.h>
 
 static void
-snake_upcase_char(char *c) {
+snake_upcase_char(char *c)
+{
 	if (*c >= 'a' && *c <= 'z') {
 		*c &= ~0x20;
 	} else if (*c == '-') {
@@ -153,7 +154,8 @@ snake_upcase_char(char *c) {
 %% write data;
 
 int
-eth_parser_init(eth_parser_t *parser)  {
+eth_parser_init(eth_parser_t *parser)
+{
 	int cs = 0;
 
 	%% write init;
@@ -172,7 +174,8 @@ eth_parser_init(eth_parser_t *parser)  {
 
 /** exec **/
 size_t
-eth_parser_execute(eth_parser_t *parser, const char *buffer, size_t len, size_t off)  {
+eth_parser_execute(eth_parser_t *parser, const char *buffer, size_t len, size_t off)
+{
 	const char *p, *pe;
 	int cs = parser->cs;
 
@@ -200,8 +203,10 @@ eth_parser_execute(eth_parser_t *parser, const char *buffer, size_t len, size_t 
 	return(parser->nread);
 }
 
+inline
 int
-eth_parser_finish(eth_parser_t *parser) {
+eth_parser_finish(eth_parser_t *parser)
+{
 	if (eth_parser_has_error(parser)) {
 		return -1;
 	} else if (eth_parser_is_finished(parser)) {
@@ -211,13 +216,17 @@ eth_parser_finish(eth_parser_t *parser) {
 	}
 }
 
+inline
 int
-eth_parser_has_error(eth_parser_t *parser) {
+eth_parser_has_error(eth_parser_t *parser)
+{
 	return parser->cs == eth_parser_error;
 }
 
+inline
 int
-eth_parser_is_finished(eth_parser_t *parser) {
+eth_parser_is_finished(eth_parser_t *parser)
+{
 	return parser->cs >= eth_parser_first_final;
 }
 

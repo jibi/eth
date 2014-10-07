@@ -38,7 +38,8 @@
 void do_log(const char *fmt, va_list args, const char *type);
 
 void
-log_debug1(const char *msg __attribute__((unused)), ...) {
+log_debug1(const char *msg __attribute__((unused)), ...)
+{
 #if DEBUG >= 1
 	va_list args;
 
@@ -49,7 +50,8 @@ log_debug1(const char *msg __attribute__((unused)), ...) {
 }
 
 void
-log_debug2(const char *msg __attribute__((unused)), ...) {
+log_debug2(const char *msg __attribute__((unused)), ...)
+{
 #if DEBUG >= 2
 	va_list args;
 
@@ -58,8 +60,10 @@ log_debug2(const char *msg __attribute__((unused)), ...) {
 	va_end(args);
 #endif
 }
+
 void
-log_info(const char *msg, ...) {
+log_info(const char *msg, ...)
+{
 	va_list args;
 
 	va_start(args, msg);
@@ -68,7 +72,8 @@ log_info(const char *msg, ...) {
 }
 
 void
-log_error(const char *msg, ...) {
+log_error(const char *msg, ...)
+{
 	va_list args;
 
 	va_start(args, msg);
@@ -77,7 +82,8 @@ log_error(const char *msg, ...) {
 }
 
 void
-fatal_tragedy(int code, const char *msg, ...) {
+fatal_tragedy(int code, const char *msg, ...)
+{
 	va_list args;
 
 	va_start(args, msg);
@@ -88,7 +94,8 @@ fatal_tragedy(int code, const char *msg, ...) {
 }
 
 void
-do_log(const char *fmt, va_list args, const char *type) {
+do_log(const char *fmt, va_list args, const char *type)
+{
 	char msgbuf[1024];
 	char fmtbuf[1024];
 

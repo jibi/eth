@@ -29,7 +29,7 @@
 
 #include <eth/exotcp/tcp.h>
 
-uint32_t calc_hash(hash_table_t *h, void *key);
+static uint32_t calc_hash(hash_table_t *h, void *key);
 
 static const
 unsigned int primes[] = {
@@ -43,9 +43,10 @@ unsigned int primes[] = {
 	0
 };
 
-static uint32_t
-hash_table_next_size(hash_table_t *h) {
-
+static
+uint32_t
+hash_table_next_size(hash_table_t *h)
+{
 	int i;
 
 	for (i = 0; i < sizeof(primes)/sizeof(uint32_t); i++) {
@@ -58,8 +59,8 @@ hash_table_next_size(hash_table_t *h) {
 }
 
 hash_table_t *
-hash_table_init(hash_func_t *hash_func, key_cmp_func_t *cmp) {
-
+hash_table_init(hash_func_t *hash_func, key_cmp_func_t *cmp)
+{
 	hash_table_t *h;
 	
 	h       = malloc(sizeof(hash_table_t));
@@ -75,9 +76,10 @@ hash_table_init(hash_func_t *hash_func, key_cmp_func_t *cmp) {
 	return h;
 }
 
+static
 hash_item_t *
-_hash_table_lookup(hash_table_t *h, void *key) {
-
+_hash_table_lookup(hash_table_t *h, void *key)
+{
 	uint32_t hashed_key;
 	list_head_t *bin;
 	hash_item_t   *item;
@@ -102,8 +104,8 @@ _hash_table_lookup(hash_table_t *h, void *key) {
 }
 
 void
-hash_table_resize(hash_table_t *h) {
-
+hash_table_resize(hash_table_t *h)
+{
 	int         i;
 	uint32_t    old_size;
 	list_head_t **old_bins;
@@ -133,8 +135,8 @@ hash_table_resize(hash_table_t *h) {
 }
 
 void
-hash_table_insert(hash_table_t *h, void *key, void *val) {
-
+hash_table_insert(hash_table_t *h, void *key, void *val)
+{
 	uint32_t   hashed_key;
 	bool       found;
 	hash_item_t *item;
@@ -180,8 +182,8 @@ hash_table_insert(hash_table_t *h, void *key, void *val) {
 }
 
 void
-hash_table_remove(hash_table_t *h, void *key) {
-
+hash_table_remove(hash_table_t *h, void *key)
+{
 	hash_item_t *item;
 	item = _hash_table_lookup(h, key);
 
@@ -194,8 +196,8 @@ hash_table_remove(hash_table_t *h, void *key) {
 }
 
 void *
-hash_table_lookup(hash_table_t *h, void *key) {
-
+hash_table_lookup(hash_table_t *h, void *key)
+{
 	hash_item_t *i = _hash_table_lookup(h, key);
 
 	if (i) {
@@ -205,15 +207,16 @@ hash_table_lookup(hash_table_t *h, void *key) {
 	}
 }
 
+static
 uint32_t
-calc_hash(hash_table_t *h, void *key) {
-
+calc_hash(hash_table_t *h, void *key)
+{
 	return h->hash_func(key) % h->m;
 }
 
 uint32_t
-murmur_hash(const void *key, int len, uint32_t seed) {
-
+murmur_hash(const void *key, int len, uint32_t seed)
+{
 	const uint32_t m          = 0x5bd1e995;
 	const int r               = 24;
 	uint32_t h                = seed ^ len;

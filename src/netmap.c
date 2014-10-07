@@ -44,8 +44,8 @@ list_head_t    *nm_tcp_conn_list;
 static bool nm_has_data_to_send = false;
 
 void
-init_netmap(char *ifname) {
-
+init_netmap(char *ifname)
+{
 	char _ifname[IFNAMSIZ + 7];
 
 	sprintf(_ifname, "netmap:%s", ifname);
@@ -60,8 +60,8 @@ init_netmap(char *ifname) {
 
 static inline
 void
-process_packet(char *buf, size_t len) {
-
+process_packet(char *buf, size_t len)
+{
 	packet_t p;
 	socket_t s;
 
@@ -76,8 +76,8 @@ process_packet(char *buf, size_t len) {
 
 static inline
 void
-recv_packet(struct netmap_ring *recv_ring) {
-
+recv_packet(struct netmap_ring *recv_ring)
+{
 	unsigned int i, idx, len;
 	char *buf;
 
@@ -105,8 +105,8 @@ nm_sync_rx_tx_ring() {
 
 static inline
 void
-nm_recv_loop() {
-
+nm_recv_loop()
+{
 	struct netmap_ring *recv_ring;
 
 	recv_ring = NETMAP_RXRING(netmap->nifp, 0);
@@ -119,8 +119,8 @@ nm_recv_loop() {
 
 static inline
 void
-nm_send_loop() {
-
+nm_send_loop()
+{
 	struct netmap_ring *send_ring;
 	static bool resume_loop = false;
 
@@ -156,8 +156,8 @@ nm_send_loop() {
 }
 
 void
-nm_loop() {
-
+nm_loop()
+{
 	while (1) {
 		nm_sync_rx_tx_ring();
 
@@ -167,8 +167,8 @@ nm_loop() {
 }
 
 int
-nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
-
+nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc)
+{
 	struct netmap_ring *ring;
 	int i, idx;
 
@@ -190,8 +190,8 @@ nm_get_tx_buff_no_poll(nm_tx_desc_t *tx_desc) {
 }
 
 int
-nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
-
+nm_get_tx_buff(nm_tx_desc_t *tx_desc)
+{
 	struct pollfd fds;
 
 	fds.fd     = NETMAP_FD(netmap);
@@ -203,8 +203,8 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc) {
 }
 
 void
-nm_send_packet(void *packet, uint16_t packet_len) {
-
+nm_send_packet(void *packet, uint16_t packet_len)
+{
 	nm_tx_desc_t tx_desc;
 
 	nm_get_tx_buff(&tx_desc);
@@ -215,8 +215,8 @@ nm_send_packet(void *packet, uint16_t packet_len) {
 }
 
 void
-nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t data_len) {
-
+nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t data_len)
+{
 	nm_tx_desc_t tx_desc;
 
 	nm_get_tx_buff(&tx_desc);

@@ -29,59 +29,67 @@
 #include <eth.h>
 #include <eth/http11.h>
 
-static void
-field(eth_parser_t* hp, const char *field, size_t flen, const char *value, size_t vlen) {
-
+static inline
+void
+field(eth_parser_t* hp, const char *field, size_t flen, const char *value, size_t vlen)
+{
 //	printf("field:\n\tname:\t%.*s\n\tvalue:\t%.*s\n",  (int)flen, field,  (int)vlen, value);
 }
 
-static void
+static inline
+void
 method(eth_parser_t* hp, const char *at, size_t length) {
 	asprintf(&hp->method, "%.*s", (int) length, at);
 
 
 }
 
-static void
-uri(eth_parser_t* hp, const char *at, size_t length) {
-
+static inline
+void
+uri(eth_parser_t* hp, const char *at, size_t length)
+{
 	asprintf(&hp->uri, "%.*s", (int) length, at);
 }
 
-static void
-fragment(eth_parser_t* hp, const char *at, size_t length) {
-
+static inline
+void
+fragment(eth_parser_t* hp, const char *at, size_t length)
+{
 	//printf("frag:\t\t%.*s\n", (int) length, at);
 }
 
-static void
-path(eth_parser_t* hp, const char *at, size_t length) {
-
+static inline
+void
+path(eth_parser_t* hp, const char *at, size_t length)
+{
 	asprintf(&hp->path, "%.*s", (int) length, at);
 }
 
-static void
-query(eth_parser_t* hp, const char *at, size_t length) {
-
+static inline
+void
+query(eth_parser_t* hp, const char *at, size_t length)
+{
 	asprintf(&hp->query, "%.*s", (int) length, at);
 
 }
 
-static void
-version(eth_parser_t* hp, const char *at, size_t length) {
-
+static inline
+void
+version(eth_parser_t* hp, const char *at, size_t length)
+{
 	asprintf(&hp->version, "%.*s", (int) length, at);
 
 }
 
-static void
-header_done(eth_parser_t* hp, const char *at, size_t length) {
-
+static inline
+void
+header_done(eth_parser_t* hp, const char *at, size_t length)
+{
 }
 
 eth_parser_t *
-new_eth_parser() {
-
+new_eth_parser()
+{
 	eth_parser_t *parser = malloc(sizeof(eth_parser_t));
 
 	parser->field_cb       = field;
@@ -105,8 +113,8 @@ new_eth_parser() {
 }
 
 void
-delete_eth_parser(eth_parser_t *p) {
-
+delete_eth_parser(eth_parser_t *p)
+{
 	if (p->method) {
 		free(p->method);
 	}
@@ -134,8 +142,8 @@ delete_eth_parser(eth_parser_t *p) {
  * TODO: add "Connection: close" if client does not request keep-alive
  */
 void
-test_response(http_response_t *response) {
-
+test_response(http_response_t *response)
+{
 	char *body;
 
 	asprintf(&body,
@@ -167,8 +175,8 @@ test_response(http_response_t *response) {
 }
 
 void
-build_404(http_response_t *response) {
-
+build_404(http_response_t *response)
+{
 	char *body = "<h1>404 Not Found :(<h1>";
 
 	asprintf(&response->header_buf,
@@ -185,8 +193,8 @@ build_404(http_response_t *response) {
 }
 
 void
-eth_http_response(http_response_t *response) {
-
+eth_http_response(http_response_t *response)
+{
 	char *path;
 	char *wd = getcwd(NULL, 0);
 	struct stat stat;
@@ -216,8 +224,8 @@ eth_http_response(http_response_t *response) {
 }
 
 void
-handle_http_request(tcp_conn_t *conn) {
-
+handle_http_request(tcp_conn_t *conn)
+{
 	http_response_t *response;
 
 	if (!conn->http_response) {
@@ -244,15 +252,17 @@ handle_http_request(tcp_conn_t *conn) {
 	}
 }
 
+inline
 int
-http_res_has_header_to_send(http_response_t *res) {
-
+http_res_has_header_to_send(http_response_t *res)
+{
 	return res->header_len - res->header_pos;
 }
 
+inline
 int
-http_res_has_file_to_send(http_response_t *res) {
-
+http_res_has_file_to_send(http_response_t *res)
+{
 	return res->file_len - res->file_pos;
 }
 
