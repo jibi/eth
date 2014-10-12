@@ -673,9 +673,11 @@ tcp_conn_send_data_http_hdr(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
 	res = conn->http_response;
 
 	while (http_res_has_header_to_send(res) && tcp_conn_has_open_window(conn) && ctx->slot_count < MAX_SLOT) {
-		if (unlikely(!nm_get_tx_buff_no_poll(&tx_desc))) {
+		if (unlikely(nm_send_ring_empty())) {
 			break;
 		}
+
+		nm_get_tx_buff(&tx_desc);
 
 		payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc.buf);
 		payload_len = MIN(ETH_MTU - sizeof(data_tcp_packet), res->header_len - res->header_pos);
@@ -747,9 +749,11 @@ tcp_conn_send_data_http_file(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx)
 			http_hdr_sent = 1;
 
 		} else {
-			if (! nm_get_tx_buff_no_poll(&tx_desc[iovcnt])) {
+			if (unlikely(nm_send_ring_empty())) {
 				break;
 			}
+
+			nm_get_tx_buff(&tx_desc[iovcnt]);
 
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf);
 			payload_len = MIN(
