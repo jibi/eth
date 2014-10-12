@@ -39,7 +39,7 @@ struct {
 	eth_hdr_t           eth;
 	ip_hdr_t            ip;
 	icmp_echo_rpl_hdr_t icmp;
-} prebuild_icmp_packet;
+} preinit_icmp_packet;
 
 static
 uint16_t
@@ -57,19 +57,19 @@ icmp_echo_rpl_checksum(icmp_echo_rpl_hdr_t *icmp_echo_req_hdr, void *data, uint3
 
 static
 void
-init_prebuild_icmp_packet()
+init_preinit_icmp_packet()
 {
-	init_eth_packet(&prebuild_icmp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&prebuild_icmp_packet.ip, 0, IP_PROTO_ICMP);
+	init_eth_packet(&preinit_icmp_packet.eth, ETH_TYPE_IPV4);
+	init_ip_packet(&preinit_icmp_packet.ip, 0, IP_PROTO_ICMP);
 
-	prebuild_icmp_packet.icmp.type = ICMP_TYPE_ECHO_RPL;
-	prebuild_icmp_packet.icmp.code = 0;
+	preinit_icmp_packet.icmp.type = ICMP_TYPE_ECHO_RPL;
+	preinit_icmp_packet.icmp.code = 0;
 }
 
 void
 init_icmp()
 {
-	init_prebuild_icmp_packet();
+	init_preinit_icmp_packet();
 }
 
 static
@@ -82,14 +82,14 @@ process_icmp_echo_request()
 	data     = icmp_echo_req_data(cur_pkt);
 	data_len = icmp_echo_req_data_len(cur_pkt);
 
-	setup_eth_hdr(&prebuild_icmp_packet.eth);
-	setup_ip_hdr(&prebuild_icmp_packet.ip, sizeof(icmp_echo_rpl_hdr_t) + data_len);
+	setup_eth_hdr(&preinit_icmp_packet.eth);
+	setup_ip_hdr(&preinit_icmp_packet.ip, sizeof(icmp_echo_rpl_hdr_t) + data_len);
 
-	prebuild_icmp_packet.icmp.id       = cur_pkt->icmp_echo_req_hdr->id;
-	prebuild_icmp_packet.icmp.seq      = cur_pkt->icmp_echo_req_hdr->seq;
-	prebuild_icmp_packet.icmp.checksum = icmp_echo_rpl_checksum(&prebuild_icmp_packet.icmp, data, data_len);
+	preinit_icmp_packet.icmp.id       = cur_pkt->icmp_echo_req_hdr->id;
+	preinit_icmp_packet.icmp.seq      = cur_pkt->icmp_echo_req_hdr->seq;
+	preinit_icmp_packet.icmp.checksum = icmp_echo_rpl_checksum(&preinit_icmp_packet.icmp, data, data_len);
 
-	nm_send_packet_with_data(&prebuild_icmp_packet, sizeof(prebuild_icmp_packet), data, data_len);
+	nm_send_packet_with_data(&preinit_icmp_packet, sizeof(preinit_icmp_packet), data, data_len);
 }
 
 void

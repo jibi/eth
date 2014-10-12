@@ -69,7 +69,7 @@ struct {
 } __attribute__ ((packed)) ack_tcp_packet;
 
 /*
- * prebuild packet: used to send data
+ * preinit packet: used to send data
  */
 struct {
 	eth_hdr_t       eth;
@@ -79,7 +79,7 @@ struct {
 } __attribute__ ((packed)) data_tcp_packet;
 
 /*
- * prebuild packet: sent to ack a fin packet
+ * preinit packet: sent to ack a fin packet
  */
 struct {
 	eth_hdr_t          eth;

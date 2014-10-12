@@ -61,18 +61,19 @@ setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len)
 void
 process_ip()
 {
-	cur_pkt->ip_hdr = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
+	cur_pkt->ip_hdr  = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;
 
 	if (unlikely(! is_this_card_ip((struct in_addr *) &cur_pkt->ip_hdr->dst_addr))) {
-		log_debug1("this is not the cur_pkt you are looking for\n");
+		log_debug1("this is not the packet you are looking for");
 		return;
 	}
 
-	if (cur_pkt->ip_hdr->proto == IP_PROTO_TCP) {
-		process_tcp();
-	} else if (cur_pkt->ip_hdr->proto == IP_PROTO_ICMP) {
-		process_icmp();
+	switch(cur_pkt->ip_hdr->proto) {
+		case IP_PROTO_TCP:
+			process_tcp();  break;
+		case IP_PROTO_ICMP:
+			process_icmp(); break;
 	}
 }
 
