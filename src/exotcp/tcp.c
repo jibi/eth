@@ -662,7 +662,7 @@ tcp_conn_has_data_to_send(tcp_conn_t *conn)
 
 void
 tcp_conn_send_data_http_hdr(tcp_conn_t *conn, tcp_send_data_ctx_t *ctx) {
-#define MAX_SLOT 100 /* XXX: find a good value for this */
+#define MAX_SLOT 64 /* XXX: find a good value for this */
 
 	http_response_t *res;
 	nm_tx_desc_t    tx_desc;
