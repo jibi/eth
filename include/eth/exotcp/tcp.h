@@ -183,6 +183,7 @@ typedef struct tcp_conn_s {
 	uint32_t ts;
 	uint32_t echo_ts;
 
+	uint32_t rtt;
 	/*
 	 * data_buffer is the TCP "system" buffer, where we receive data.
 	 *

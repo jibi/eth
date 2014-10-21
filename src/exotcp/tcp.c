@@ -108,21 +108,22 @@ static inline void tcp_fin_ack_checksum();
 static inline void tcp_rst_checksum();
 
 int
-get_tcp_clock(tcp_conn_t *conn)
+get_tcp_clock()
 {
 	struct timeval tv;
-	uint32_t       clock;
-
 	gettimeofday(&tv, 0);
 
-	clock = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
 
-	if (clock <= conn->last_clock) {
-		clock++;
-		conn->last_clock = clock;
-	}
+static inline
+void
+update_rtt(tcp_conn_t *conn, uint32_t echo_ts)
+{
+	uint32_t packet_rtt = get_tcp_clock() - echo_ts;
 
-	return clock;
+	/* FIXME: use Jacobson/Karels algorithm to calc RTT */
+	conn->rtt = (conn->rtt * 0.8) + (packet_rtt * 0.2);
 }
 
 //returns x - y taking account of the wraparound
@@ -274,21 +275,26 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn)
 				log_debug2("\twindow scaling");
 
 				if (conn->state == SYN_RCVD) {
-					/* win scaling is only valid during the
-					 * 3wh*/
+					/* win scaling is only valid during the 3wh */
 					conn->win_scale = *(cur_opt + 2);
 				}
 
 				cur_opt += 3;
 				break;
 			case 4:
-				log_debug2("\tsack permitted");
-				conn->sack_perm = 1;
+				log_debug2("\tSACK permitted");
+
+				if (conn->state == SYN_RCVD) {
+					/* SACK permitted is only valid during the 3wh */
+					conn->sack_perm = 1;
+				}
 
 				cur_opt += 2;
 				break;
 			case 5:
-				log_debug2("\tsack");
+				log_debug2("\tSACK");
+
+				/* TODO: actually implement SACK */
 
 				cur_opt += *(cur_opt + 1);
 				break;
@@ -296,6 +302,10 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr, tcp_conn_t *conn)
 				log_debug2("\tts");
 				conn->ts      = *((int *) (cur_opt + 2));
 				conn->echo_ts = *((int *) (cur_opt + 6));
+
+				if (conn->echo_ts) {
+					update_rtt(conn, ntohl(conn->echo_ts));
+				}
 
 				cur_opt += 10;
 				break;
@@ -321,7 +331,7 @@ send_tcp_syn_ack(tcp_conn_t *conn)
 
 	/* XXX */
 	syn_ack_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
-	syn_ack_tcp_packet.opts.ts.ts           = htonl(get_tcp_clock(conn));
+	syn_ack_tcp_packet.opts.ts.ts           = htonl(get_tcp_clock());
 	syn_ack_tcp_packet.opts.ts.echo         = conn->ts;
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
@@ -339,7 +349,7 @@ send_tcp_ack(tcp_conn_t *conn)
 	setup_ip_hdr(&ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&ack_tcp_packet.tcp, conn);
 
-	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
+	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock());
 	ack_tcp_packet.opts.ts.echo = conn->ts;
 
 	tcp_ack_checksum();
@@ -356,7 +366,7 @@ send_tcp_data(tcp_conn_t *conn, char *packet_buf, char *data, uint16_t len)
 	setup_ip_hdr(&data_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
 	setup_tcp_hdr(&data_tcp_packet.tcp, conn);
 
-	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
+	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock());
 	data_tcp_packet.opts.ts.echo = conn->ts;
 
 	tcp_data_checksum(data, len);
@@ -373,7 +383,7 @@ send_tcp_fin_ack(tcp_conn_t *conn)
 	setup_ip_hdr(&fin_ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&fin_ack_tcp_packet.tcp, conn);
 
-	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock(conn));
+	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock());
 	fin_ack_tcp_packet.opts.ts.echo = conn->ts;
 
 	tcp_fin_ack_checksum();
@@ -446,6 +456,12 @@ new_tcp_conn(packet_t *p)
 	conn->win_scale       = 0;
 	conn->data_len        = 0;
 	conn->http_response   = NULL;
+
+	/*
+	 * XXX: to simplify things we assume an initial RTT of 2 seconds
+	 * maybe this is not the ideal
+	 */
+	conn->rtt             = 2000000;
 
 	hash_table_insert(tcb_hash, conn->key, conn);
 	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
