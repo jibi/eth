@@ -86,8 +86,19 @@ eth_parser_t *new_eth_parser();
 void delete_eth_parser_t(eth_parser_t *p);
 void handle_http_request(tcp_conn_t *conn);
 
-int http_res_has_header_to_send(http_response_t *res);
-int http_res_has_file_to_send(http_response_t *res);
+static inline
+int
+http_res_has_header_to_send(http_response_t *res)
+{
+	return res->header_len - res->header_pos;
+}
+
+static inline
+int
+http_res_has_file_to_send(http_response_t *res)
+{
+	return res->file_len - res->file_pos;
+}
 
 #endif
 

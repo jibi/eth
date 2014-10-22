@@ -203,7 +203,6 @@ eth_parser_execute(eth_parser_t *parser, const char *buffer, size_t len, size_t 
 	return(parser->nread);
 }
 
-inline
 int
 eth_parser_finish(eth_parser_t *parser)
 {
@@ -216,14 +215,12 @@ eth_parser_finish(eth_parser_t *parser)
 	}
 }
 
-inline
 int
 eth_parser_has_error(eth_parser_t *parser)
 {
 	return parser->cs == eth_parser_error;
 }
 
-inline
 int
 eth_parser_is_finished(eth_parser_t *parser)
 {

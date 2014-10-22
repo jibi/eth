@@ -46,17 +46,4 @@ init_exotcp(char *mac, char *ip, uint16_t port)
 	init_tcp();
 }
 
-inline
-int
-is_this_card_mac(struct ether_addr *addr)
-{
-	return ! memcmp(&mac_addr, addr, sizeof(struct ether_addr));
-}
-
-inline
-int
-is_this_card_ip(struct in_addr *addr)
-{
-	return ! memcmp(&ip_addr, addr, sizeof(struct in_addr));
-}
 

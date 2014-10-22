@@ -19,6 +19,7 @@
 #ifndef _ETH_EXOTCP_H
 #define _ETH_EXOTCP_H
 
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -64,10 +65,21 @@ extern socket_t          *cur_sock;
 
 void init_exotcp(char *mac, char *ip, uint16_t port);
 
-int is_this_card_mac(struct ether_addr *addr);
-int is_this_card_ip(struct in_addr *addr);
-
 #define set_cur_pkt(x)  cur_pkt = x;
 #define set_cur_sock(x) cur_sock = x;
+
+static inline
+int
+is_this_card_mac(struct ether_addr *addr)
+{
+	return ! memcmp(&mac_addr, addr, sizeof(struct ether_addr));
+}
+
+static inline
+int
+is_this_card_ip(struct in_addr *addr)
+{
+	return ! memcmp(&ip_addr, addr, sizeof(struct in_addr));
+}
 
 #endif

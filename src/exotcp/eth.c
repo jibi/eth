@@ -35,8 +35,6 @@
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>
 
-unsigned char broadcast_addr[] = "\xff\xff\xff\xff\xff\xff";
-
 void
 init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type)
 {
@@ -67,12 +65,5 @@ process_eth()
 	} else if (cur_pkt->eth_hdr->mac_type == ETH_TYPE_ARP) {
 		process_arp();
 	}
-}
-
-inline
-int
-is_broadcast_addr(struct ether_addr *a)
-{
-	return ! memcmp(a, broadcast_addr, sizeof(struct ether_addr));
 }
 

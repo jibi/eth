@@ -252,17 +252,3 @@ handle_http_request(tcp_conn_t *conn)
 	}
 }
 
-inline
-int
-http_res_has_header_to_send(http_response_t *res)
-{
-	return res->header_len - res->header_pos;
-}
-
-inline
-int
-http_res_has_file_to_send(http_response_t *res)
-{
-	return res->file_len - res->file_pos;
-}
-

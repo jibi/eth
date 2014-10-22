@@ -19,7 +19,6 @@
 #ifndef _ETH_EXOTCP_ETH_H
 #define _ETH_EXOTCP_ETH_H
 
-
 #include <stddef.h>
 
 #include <netinet/ether.h>
@@ -40,10 +39,18 @@ typedef struct eth_hdr_s {
 
 #define ETH_MTU (1500 + sizeof(eth_hdr_t))
 
+#define BROADCAST_ADDRESS "\xff\xff\xff\xff\xff\xff"
+
 void init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type);
 void setup_eth_hdr(eth_hdr_t *eth_hdr);
 void process_eth();
-int is_broadcast_addr(struct ether_addr *a);
+
+static inline
+int
+is_broadcast_addr(struct ether_addr *a)
+{
+	return ! memcmp(a, BROADCAST_ADDRESS, sizeof(struct ether_addr));
+}
 
 #endif
 
