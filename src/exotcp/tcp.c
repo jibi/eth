@@ -270,8 +270,8 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 				cur_opt++;
 				break;
 			case 2:
-				log_debug2("\tmss: %d", (short) *(cur_opt + 2));
-				cur_conn->mss = (short) *(cur_opt + 2);
+				cur_conn->mss = ntohs((short) *(cur_opt + 2));
+				log_debug2("\tmss: %d", cur_conn->mss);
 
 				cur_opt += 4;
 				break;
@@ -303,9 +303,10 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 				cur_opt += *(cur_opt + 1);
 				break;
 			case 8:
-				log_debug2("\tts");
 				cur_conn->ts      = *((int *) (cur_opt + 2));
 				cur_conn->echo_ts = *((int *) (cur_opt + 6));
+
+				log_debug2("\ts: %d; echo ts: %d", ntohl(cur_conn->ts), ntohl(cur_conn->echo_ts));
 
 				if (cur_conn->echo_ts) {
 					update_rtt(ntohl(cur_conn->echo_ts));
