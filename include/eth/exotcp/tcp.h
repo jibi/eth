@@ -202,11 +202,14 @@ typedef struct tcp_conn_s {
 } tcp_conn_t;
 
 extern hash_table_t *tcb_hash;
+extern tcp_conn_t   *cur_conn;
 
-void init_tcp();
-void process_tcp();
-int tcp_conn_has_data_to_send(tcp_conn_t *conn);
-void tcp_conn_send_data(tcp_conn_t *conn);
+void init_tcp(void);
+void process_tcp(void);
+int tcp_conn_has_data_to_send(void);
+void tcp_conn_send_data(void);
+
+#define set_cur_conn(x) cur_conn = x
 
 #endif
 

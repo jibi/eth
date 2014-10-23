@@ -49,7 +49,7 @@ setup_eth_hdr(eth_hdr_t *eth_hdr)
 }
 
 void
-process_eth()
+process_eth(void)
 {
 	cur_pkt->eth_hdr  = (eth_hdr_t *) cur_pkt->buf;
 	memcpy(cur_sock->src_mac,cur_pkt->eth_hdr->src_addr, sizeof(struct ether_addr));

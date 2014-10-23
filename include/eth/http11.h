@@ -82,9 +82,9 @@ int eth_parser_is_finished(eth_parser_t *parser);
 
 #define eth_parser_nread(parser) (parser)->nread
 
-eth_parser_t *new_eth_parser();
+eth_parser_t *new_eth_parser(void);
 void delete_eth_parser_t(eth_parser_t *p);
-void handle_http_request(tcp_conn_t *conn);
+void handle_http_request(void);
 
 static inline
 int

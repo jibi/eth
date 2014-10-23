@@ -47,7 +47,7 @@ struct {
 
 static
 void
-init_preinit_arp_packet()
+init_preinit_arp_packet(void)
 {
 	init_eth_packet(&preinit_arp_packet.eth, ETH_TYPE_ARP);
 
@@ -62,14 +62,14 @@ init_preinit_arp_packet()
 }
 
 void
-init_arp()
+init_arp(void)
 {
 	init_preinit_arp_packet();
 }
 
 static
 void
-process_arp_request()
+process_arp_request(void)
 {
 	setup_eth_hdr(&preinit_arp_packet.eth);
 
@@ -80,7 +80,7 @@ process_arp_request()
 }
 
 void
-process_arp()
+process_arp(void)
 {
 	cur_pkt->arp_hdr = (arp_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 

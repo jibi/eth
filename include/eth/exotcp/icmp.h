@@ -48,8 +48,8 @@ typedef struct icmp_echo_rpl_hdr_s {
 #define ICMP_TYPE_ECHO_RPL 0
 #define ICMP_TYPE_ECHO_REQ 8
 
-void init_icmp();
-void process_icmp();
+void init_icmp(void);
+void process_icmp(void);
 
 #endif
 

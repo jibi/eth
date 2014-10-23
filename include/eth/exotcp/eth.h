@@ -43,7 +43,7 @@ typedef struct eth_hdr_s {
 
 void init_eth_packet(eth_hdr_t *eth_hdr, uint16_t eth_type);
 void setup_eth_hdr(eth_hdr_t *eth_hdr);
-void process_eth();
+void process_eth(void);
 
 static inline
 int

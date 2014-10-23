@@ -41,8 +41,8 @@ typedef struct arp_hdr_s {
 #define ARP_OPCODE_REQUEST   HTONS(0x1)
 #define ARP_OPCODE_REPLY     HTONS(0x2)
 
-void init_arp();
-void process_arp();
+void init_arp(void);
+void process_arp(void);
 
 #endif
 

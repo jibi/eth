@@ -59,7 +59,7 @@ setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len)
 }
 
 void
-process_ip()
+process_ip(void)
 {
 	cur_pkt->ip_hdr  = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;

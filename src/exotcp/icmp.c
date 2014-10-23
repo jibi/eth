@@ -57,7 +57,7 @@ icmp_echo_rpl_checksum(icmp_echo_rpl_hdr_t *icmp_echo_req_hdr, void *data, uint3
 
 static
 void
-init_preinit_icmp_packet()
+init_preinit_icmp_packet(void)
 {
 	init_eth_packet(&preinit_icmp_packet.eth, ETH_TYPE_IPV4);
 	init_ip_packet(&preinit_icmp_packet.ip, 0, IP_PROTO_ICMP);
@@ -67,14 +67,14 @@ init_preinit_icmp_packet()
 }
 
 void
-init_icmp()
+init_icmp(void)
 {
 	init_preinit_icmp_packet();
 }
 
 static
 void
-process_icmp_echo_request()
+process_icmp_echo_request(void)
 {
 	uint8_t  *data;
 	uint16_t data_len;
@@ -93,7 +93,7 @@ process_icmp_echo_request()
 }
 
 void
-process_icmp()
+process_icmp(void)
 {
 	cur_pkt->icmp_echo_req_hdr = (icmp_echo_req_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
 

@@ -105,7 +105,7 @@ nm_sync_rx_tx_ring() {
 
 static inline
 void
-nm_recv_loop()
+nm_recv_loop(void)
 {
 	struct netmap_ring *recv_ring;
 
@@ -120,7 +120,7 @@ nm_recv_loop()
 
 static inline
 void
-nm_send_loop()
+nm_send_loop(void)
 {
 	struct netmap_ring *send_ring;
 	static bool resume_loop = false;
@@ -145,10 +145,12 @@ nm_send_loop()
 				break;
 			}
 
-			if (tcp_conn_has_data_to_send(conn)) {
+			set_cur_conn(conn);
+
+			if (tcp_conn_has_data_to_send()) {
 				set_cur_sock(conn->sock);
 
-				tcp_conn_send_data(conn);
+				tcp_conn_send_data();
 				nm_has_data_to_send = true;
 			}
 		}
@@ -157,7 +159,7 @@ nm_send_loop()
 }
 
 void
-nm_loop()
+nm_loop(void)
 {
 	while (1) {
 		nm_sync_rx_tx_ring();
@@ -168,7 +170,8 @@ nm_loop()
 }
 
 int
-nm_send_ring_empty() {
+nm_send_ring_empty(void)
+{
 	struct netmap_ring *ring;
 	ring = NETMAP_TXRING(netmap->nifp, 0);
 

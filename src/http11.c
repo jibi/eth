@@ -88,7 +88,7 @@ header_done(eth_parser_t* hp, const char *at, size_t length)
 }
 
 eth_parser_t *
-new_eth_parser()
+new_eth_parser(void)
 {
 	eth_parser_t *parser = malloc(sizeof(eth_parser_t));
 
@@ -224,22 +224,22 @@ eth_http_response(http_response_t *response)
 }
 
 void
-handle_http_request(tcp_conn_t *conn)
+handle_http_request(void)
 {
 	http_response_t *response;
 
-	if (!conn->http_response) {
+	if (!cur_conn->http_response) {
 		response = malloc(sizeof(http_response_t));
 
 		response->parser = new_eth_parser();
 		response->finished = false;
 
-		conn->http_response = response;
+		cur_conn->http_response = response;
 	} else {
-		response = conn->http_response;
+		response = cur_conn->http_response;
 	}
 
-	eth_parser_execute(response->parser, (const char *) conn->data_buffer, conn->data_len + 1, 0);
+	eth_parser_execute(response->parser, (const char *) cur_conn->data_buffer, cur_conn->data_len + 1, 0);
 
 	if (eth_parser_finish(response->parser) == 1) {
 		if (!strcmp(response->parser->path, "/autism")) {

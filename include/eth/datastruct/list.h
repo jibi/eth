@@ -29,7 +29,7 @@ typedef struct list_head_s {
 } list_head_t;
 
 void init_list(list_head_t *l);
-list_head_t *list_new();
+list_head_t *list_new(void);
 
 static inline
 void

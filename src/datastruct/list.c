@@ -28,7 +28,7 @@ init_list(list_head_t *l)
 }
 
 list_head_t *
-list_new()
+list_new(void)
 {
 	list_head_t *l = malloc(sizeof(list_head_t));
 	init_list(l);

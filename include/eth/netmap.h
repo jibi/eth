@@ -35,8 +35,8 @@ extern struct nm_desc *netmap;
 extern list_head_t    *nm_tcp_conn_list;
 
 void init_netmap(char *ifname);
-void nm_loop();
-int nm_send_ring_empty();
+void nm_loop(void);
+int nm_send_ring_empty(void);
 void nm_get_tx_buff(nm_tx_desc_t *tx_desc);
 void nm_send_packet(void *packet, uint16_t packet_len);
 void nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t data_len);
