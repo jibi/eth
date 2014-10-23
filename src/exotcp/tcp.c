@@ -130,7 +130,8 @@ update_rtt(uint32_t echo_ts)
 //returns x - y taking account of the wraparound
 static inline
 int
-cmp_seq(uint32_t x, uint32_t y) {
+cmp_seq(uint32_t x, uint32_t y)
+{
 	uint32_t t = (0x80000000 - 1);
 
 	return (x > y) ?
@@ -225,12 +226,14 @@ init_rst_tcp_packet(void)
 }
 
 bool
-cmp_tcp_conn(void *t1, void *t2) {
+cmp_tcp_conn(void *t1, void *t2)
+{
 	return !memcmp(t1, t2, sizeof(tcp_conn_key_t));
 }
 
 uint32_t
-tcp_key_hash_func(void *key) {
+tcp_key_hash_func(void *key)
+{
 	return murmur_hash(key, sizeof(tcp_conn_key_t), 0);
 }
 
@@ -409,7 +412,8 @@ send_tcp_rst(void)
 }
 
 void
-send_tcp_rst_without_conn() {
+send_tcp_rst_without_conn()
+{
 	/*
 	 * build a fake conn to make send_tcp_rst happy
 	 */
@@ -709,18 +713,30 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx) {
 		*tx_desc.len     = sizeof(data_tcp_packet) + payload_len;
 		res->header_pos += payload_len;
 
-		send_tcp_data(tx_desc.buf, payload_buf, payload_len);
+		/*
+		 * send this frame only if:
+		 *
+		 * * payload's length is equal to MSS or
+		 * * payload's length is not equal to MSS but there's no more
+		 * data to send (i.e. file_len is 0)
+		 */
+		if (payload_len == cur_conn->mss - sizeof(tcp_data_opts_t) || res->file_len == 0) {
+			send_tcp_data(tx_desc.buf, payload_buf, payload_len);
 
-		cur_conn->last_sent_byte  += payload_len;
-		cur_conn->recv_eff_window -= payload_len;
+			cur_conn->last_sent_byte  += payload_len;
+			cur_conn->recv_eff_window -= payload_len;
 
-		ctx->slot_count++;
+			ctx->slot_count++;
+		} else {
+			ctx->http_hdr_last_tx_desc.buf = tx_desc.buf;
+			ctx->http_hdr_last_tx_desc.len = tx_desc.len;
+
+			ctx->last_http_hdr_pl_len      = payload_len;
+
+			break;
+		}
 	}
 
-	ctx->http_hdr_last_tx_desc.buf = tx_desc.buf;
-	ctx->http_hdr_last_tx_desc.len = tx_desc.len;
-
-	ctx->last_http_hdr_pl_len      = payload_len;
 }
 
 void
@@ -736,60 +752,53 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 
 	char    *payload_buf;
 	uint16_t payload_len;
+	uint16_t payload_offset;
 
-	res                  = cur_conn->http_response;
-	iovcnt               = 0;
-	start_pos            = res->file_pos;
-	http_hdr_sent        = 0;
-
-	/* if header fill up the packet, zero out last_http_hdr_pl_len */
-	if (ctx->last_http_hdr_pl_len == ETH_MTU - sizeof(data_tcp_packet)) {
-		ctx->last_http_hdr_pl_len = 0;
-	}
+	res            = cur_conn->http_response;
+	iovcnt         = 0;
+	start_pos      = res->file_pos;
+	payload_offset = ctx->last_http_hdr_pl_len;
 
 	while (http_res_has_file_to_send(res) && tcp_conn_has_open_window() && ctx->slot_count < MAX_SLOT) {
-		if ((!http_hdr_sent) && ctx->last_http_hdr_pl_len) {
+		if (unlikely(nm_send_ring_empty())) {
+			break;
+		}
+
+		/*
+		 * payload_offset specifies the offset which we need to use to
+		 * start write the file into the first packet (because we are
+		 * writing a packet that was partially written by the
+		 * tcp_cond_send_data_http_header function).
+		 */
+
+		/* TODO: maybe factorize this */
+		if (unlikely(payload_offset)) {
 			/*
 			 * here we are modifying the last packet, the one partially
 			 * written with the last part of the HTTP header.
 			 */
-			tx_desc[0].buf = ctx->http_hdr_last_tx_desc.buf;
-			tx_desc[0].len = ctx->http_hdr_last_tx_desc.len;
+			tx_desc[iovcnt].buf = ctx->http_hdr_last_tx_desc.buf;
+			tx_desc[iovcnt].len = ctx->http_hdr_last_tx_desc.len;
 
-			cur_conn->last_sent_byte  -= ctx->last_http_hdr_pl_len;
-			cur_conn->recv_eff_window += ctx->last_http_hdr_pl_len;
+			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf) + payload_offset;
+			payload_len = MIN(ETH_MTU - (sizeof(data_tcp_packet) + payload_offset), res->file_len - res->file_pos);
 
-			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc->buf) + ctx->last_http_hdr_pl_len;
-			payload_len = MIN(
-				ETH_MTU - (sizeof(data_tcp_packet) + ctx->last_http_hdr_pl_len),
-				res->file_len - res->file_pos
-			);
+			*tx_desc[iovcnt].len = sizeof(data_tcp_packet) + payload_offset + payload_len;
+			cur_conn->recv_eff_window -= payload_offset + payload_len;
 
-			*tx_desc->len = sizeof(data_tcp_packet) + ctx->last_http_hdr_pl_len + payload_len;
-
-			cur_conn->recv_eff_window -= ctx->last_http_hdr_pl_len + payload_len;
-			http_hdr_sent = 1;
-
+			payload_offset = 0;
 		} else {
-			if (unlikely(nm_send_ring_empty())) {
-				break;
-			}
-
 			nm_get_tx_buff(&tx_desc[iovcnt]);
 
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf);
-			payload_len = MIN(
-				ETH_MTU - sizeof(data_tcp_packet),
-				res->file_len - res->file_pos
-			);
+			payload_len = MIN(ETH_MTU - sizeof(data_tcp_packet), res->file_len - res->file_pos);
 
-			*tx_desc[iovcnt].len = sizeof(data_tcp_packet) + payload_len;
+			*tx_desc[iovcnt].len       = sizeof(data_tcp_packet) + payload_len;
 			cur_conn->recv_eff_window -= payload_len;
 		}
 
 		iov[iovcnt].iov_base = payload_buf;
 		iov[iovcnt].iov_len  = payload_len;
-
 		res->file_pos       += payload_len;
 
 		ctx->slot_count++;
@@ -800,10 +809,12 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 		preadv(res->file_fd, iov, iovcnt, start_pos);
 
 		/*
-		 * fix the first ring: we must consider the HTTP header
+		 * fix the first ring: we must consider the possible HTTP header
 		 */
-		iov[0].iov_base = (char *) iov[0].iov_base - ctx->last_http_hdr_pl_len;
-		iov[0].iov_len  = iov[0].iov_len + ctx->last_http_hdr_pl_len;
+		if (ctx->last_http_hdr_pl_len) {
+			iov[0].iov_base = (char *) iov[0].iov_base - ctx->last_http_hdr_pl_len;
+			iov[0].iov_len  = iov[0].iov_len + ctx->last_http_hdr_pl_len;
+		}
 
 		for (int i = 0; i < iovcnt; i++) {
 			send_tcp_data(tx_desc[i].buf, iov[i].iov_base, iov[i].iov_len);
