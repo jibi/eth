@@ -27,6 +27,8 @@
 #define MAX(a,b) __extension__({int _a = (a), _b = (b); _a > _b ? _a : _b; })
 #define MIN(a,b) __extension__({int _a = (a), _b = (b); _a < _b ? _a : _b; })
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 typedef enum bool_e {
 	false,
 	true

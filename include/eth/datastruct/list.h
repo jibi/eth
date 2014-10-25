@@ -28,8 +28,11 @@ typedef struct list_head_s {
 	struct list_head_s *next;
 } list_head_t;
 
+typedef int(list_sort_cmp_func_t)(void *, list_head_t *, list_head_t *);
+
 void init_list(list_head_t *l);
 list_head_t *list_new(void);
+void list_sort(void *priv, list_head_t *head, list_sort_cmp_func_t *cmp);
 
 static inline
 void
@@ -61,6 +64,13 @@ list_del(list_head_t *entry)
 {
 	entry->next->prev = entry->prev;
 	entry->prev->next = entry->next;
+}
+
+static inline
+int
+list_empty(const list_head_t *head)
+{
+	return head->next == head;
 }
 
 #define list_entry(ptr, type, member) \
