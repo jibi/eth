@@ -29,10 +29,7 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-typedef enum bool_e {
-	false,
-	true
-} bool;
+#include <stdbool.h>
 
 #endif
 
