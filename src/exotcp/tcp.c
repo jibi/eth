@@ -481,10 +481,14 @@ void
 delete_tcp_conn(void)
 {
 	hash_table_remove(tcb_hash, cur_conn->key);
+	/*
+	 * if this is the current connection on which nm send loop is
+	 * iterating, update it to point to the next entry
+	 */
+	if (nm_send_loop_cur_conn == cur_conn) {
+		nm_send_loop_cur_conn = list_next_entry(nm_send_loop_cur_conn, nm_tcp_conn_list_head);
+	}
 
-	/* TODO:
-	 * check this is not the current connection on which nm send loop is
-	 * iterating on */
 	list_del(&cur_conn->nm_tcp_conn_list_head);
 
 	free(cur_conn->key);
@@ -749,8 +753,6 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 	int             iovcnt;
 
 	size_t   start_pos;
-	int      http_hdr_sent;
-
 	char    *payload_buf;
 	uint16_t payload_len;
 	uint16_t payload_offset;

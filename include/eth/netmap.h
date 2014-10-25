@@ -33,6 +33,7 @@ typedef struct nm_tx_ring_desc_s {
 
 extern struct nm_desc *netmap;
 extern list_head_t    *nm_tcp_conn_list;
+extern tcp_conn_t     *nm_send_loop_cur_conn;
 
 void init_netmap(char *ifname);
 void nm_loop(void);

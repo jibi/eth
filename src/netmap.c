@@ -40,8 +40,9 @@
 
 struct nm_desc *netmap;
 list_head_t    *nm_tcp_conn_list;
+tcp_conn_t     *nm_send_loop_cur_conn = NULL;
 
-static bool nm_has_data_to_send = false;
+static bool nm_has_data_to_send   = false;
 
 void
 init_netmap(char *ifname)
@@ -124,7 +125,6 @@ nm_send_loop(void)
 {
 	struct netmap_ring *send_ring;
 	static bool resume_loop = false;
-	static tcp_conn_t *conn = NULL;
 
 	send_ring = NETMAP_TXRING(netmap->nifp, 0);
 
@@ -132,23 +132,23 @@ nm_send_loop(void)
 	while (!nm_ring_empty(send_ring) && nm_has_data_to_send) {
 
 		if (unlikely(!resume_loop)) {
-			conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
+			nm_send_loop_cur_conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
 		}
 
 		resume_loop         = false;
 		nm_has_data_to_send = false;
 
 		tcp_conn_t *n;
-		list_for_each_entry_safe_from(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
+		list_for_each_entry_safe_from(nm_send_loop_cur_conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
 			if (unlikely(nm_ring_empty(send_ring))) {
 				resume_loop = true;
 				break;
 			}
 
-			set_cur_conn(conn);
+			set_cur_conn(nm_send_loop_cur_conn);
 
 			if (tcp_conn_has_data_to_send()) {
-				set_cur_sock(conn->sock);
+				set_cur_sock(cur_conn->sock);
 
 				tcp_conn_send_data();
 				nm_has_data_to_send = true;
