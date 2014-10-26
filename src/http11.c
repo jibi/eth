@@ -107,6 +107,8 @@ new_eth_parser(void)
 	parser->query          = NULL;
 	parser->version        = NULL;
 
+	parser->parsed         = false;
+
 	eth_parser_init(parser);
 
 	return parser;
@@ -232,7 +234,6 @@ handle_http_request(void)
 		response = malloc(sizeof(http_response_t));
 
 		response->parser = new_eth_parser();
-		response->finished = false;
 
 		cur_conn->http_response = response;
 	} else {
@@ -248,7 +249,8 @@ handle_http_request(void)
 			eth_http_response(response);
 		}
 
-		response->finished = true;
+		response->parser->parsed = true;
+		response->sent           = false;
 	}
 }
 

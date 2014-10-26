@@ -56,6 +56,8 @@ typedef struct eth_parser_s {
 	char *query;
 	char *version;
 
+	bool parsed;
+
 	char buf[BUFFER_LEN];
 
 } eth_parser_t;
@@ -71,7 +73,7 @@ typedef struct http_response_s {
 	size_t file_len;
 	size_t file_pos;
 
-	bool   finished;
+	bool   sent;
 } http_response_t;
 
 int eth_parser_init(eth_parser_t *parser);

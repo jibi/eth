@@ -681,8 +681,9 @@ tcp_conn_has_open_window(void)
 int
 tcp_conn_has_data_to_send(void)
 {
-	return cur_conn->http_response && cur_conn->http_response->finished &&
-		tcp_conn_has_open_window();
+	http_response_t *res = cur_conn->http_response;
+
+	return res && res->parser->parsed && (! res->sent) && tcp_conn_has_open_window();
 }
 
 void
@@ -835,6 +836,8 @@ tcp_conn_send_data(void)
 	tcp_conn_send_data_http_file(&ctx);
 
 	if (! http_res_has_file_to_send(res)) {
+		res->sent = true;
+
 		free(res->header_buf);
 		free(res->parser);
 		close(res->file_fd);
