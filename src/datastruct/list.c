@@ -29,7 +29,7 @@
 #define MAX_LIST_LENGTH_BITS 20
 
 void
-init_list(list_head_t *l)
+list_init(list_head_t *l)
 {
 	l->prev = l;
 	l->next = l;
@@ -39,7 +39,7 @@ list_head_t *
 list_new(void)
 {
 	list_head_t *l = malloc(sizeof(list_head_t));
-	init_list(l);
+	list_init(l);
 
 	return l;
 }

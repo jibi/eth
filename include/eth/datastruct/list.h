@@ -30,7 +30,7 @@ typedef struct list_head_s {
 
 typedef int(list_sort_cmp_func_t)(void *, list_head_t *, list_head_t *);
 
-void init_list(list_head_t *l);
+void list_init(list_head_t *l);
 list_head_t *list_new(void);
 void list_sort(void *priv, list_head_t *head, list_sort_cmp_func_t *cmp);
 
