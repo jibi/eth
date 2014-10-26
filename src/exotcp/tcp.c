@@ -127,6 +127,13 @@ update_rtt(uint32_t echo_ts)
 	cur_conn->rtt = (cur_conn->rtt * 0.8) + (packet_rtt * 0.2);
 }
 
+static inline
+void
+init_rtt(uint32_t echo_ts)
+{
+	cur_conn->rtt = get_tcp_clock() - echo_ts;
+}
+
 //returns x - y taking account of the wraparound
 static inline
 int
@@ -309,7 +316,11 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 				log_debug2("\ts: %d; echo ts: %d", ntohl(cur_conn->ts), ntohl(cur_conn->echo_ts));
 
 				if (cur_conn->echo_ts) {
-					update_rtt(ntohl(cur_conn->echo_ts));
+					switch (cur_conn->state) {
+						case ESTABLISHED: update_rtt(ntohl(cur_conn->echo_ts)); break;
+						case SYN_SENT:    init_rtt(ntohl(cur_conn->echo_ts));   break;
+						default: ;
+					}
 				}
 
 				cur_opt += 10;
@@ -517,6 +528,7 @@ process_tcp_new_conn(void)
 	 * number by 1
 	 */
 	conn->last_sent_byte++;
+	conn->state = SYN_SENT;
 }
 
 tcp_conn_t *
@@ -536,6 +548,10 @@ get_tcp_conn(packet_t *p)
 void
 process_3wh_ack(void)
 {
+	if (cur_pkt->tcp_hdr->data_offset > 5) {
+		parse_tcp_options(cur_pkt->tcp_hdr);
+	}
+
 	/* TODO: check ack number */
 
 	log_debug1("new connection established");
@@ -622,27 +638,30 @@ process_tcp(void)
 			case ESTABLISHED:
 				if (cur_pkt->tcp_hdr->flags & TCP_FLAG_FIN) {
 					log_debug1("recv tcp FIN packet");
+
 					process_tcp_fin();
 				} else {
 					log_debug1("recv tcp segment");
+
 					process_tcp_segment();
 				}
 				break;
-			case SYN_RCVD:
 
-				/*
-				 * we would expect an ACK packet that concludes the 3WH
-				 */
+			case SYN_SENT:
+				 /* we would expect an ACK packet that concludes the 3WH */
 				process_3wh_ack();
 				break;
 
 			case FIN_SENT:
 				process_closed_ack();
 				break;
+
+			default: ;
 		}
 	} else {
 		if (likely(cur_pkt->tcp_hdr->flags == TCP_FLAG_SYN)) {
 			process_tcp_new_conn();
+
 		} else {
 			send_tcp_rst_without_conn();
 		}

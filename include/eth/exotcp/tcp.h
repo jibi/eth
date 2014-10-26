@@ -150,6 +150,7 @@ typedef tcp_ts_opts_t tcp_fin_ack_opts_t;
 
 typedef enum tcp_state_e {
 	SYN_RCVD,
+	SYN_SENT,
 	ESTABLISHED,
 	FIN_SENT
 } tcp_state_t;
