@@ -173,7 +173,6 @@ typedef struct tcp_conn_s {
 	uint32_t last_ackd_byte;
 
 	tcp_state_t state;
-	uint32_t last_clock;
 
 	uint32_t recv_eff_window;
 

@@ -459,17 +459,12 @@ new_tcp_conn(packet_t *p)
 	conn->last_recv_byte  = ntohl(p->tcp_hdr->seq);
 	conn->last_sent_byte  = rand_seq;
 	conn->state           = SYN_RCVD;
-	conn->last_clock      = tv.tv_sec / 1000 + tv.tv_usec * 1000;
 	conn->recv_eff_window = 0;
 	conn->win_scale       = 0;
 	conn->data_len        = 0;
 	conn->http_response   = NULL;
 
-	/*
-	 * XXX: to simplify things we assume an initial RTT of 2 seconds
-	 * maybe this is not the ideal
-	 */
-	conn->rtt             = 2000000;
+	conn->rtt             = 1000;
 
 	hash_table_insert(tcb_hash, conn->key, conn);
 	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
@@ -542,7 +537,6 @@ void
 process_3wh_ack(void)
 {
 	/* TODO: check ack number */
-	/* TODO: calc RTT */
 
 	log_debug1("new connection established");
 	cur_conn->state = ESTABLISHED;
