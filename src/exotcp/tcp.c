@@ -108,20 +108,11 @@ static inline void tcp_data_checksum(char *data, uint16_t data_len);
 static inline void tcp_fin_ack_checksum(void);
 static inline void tcp_rst_checksum(void);
 
-int
-get_tcp_clock(void)
-{
-	struct timeval tv;
-	gettimeofday(&tv, 0);
-
-	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
-}
-
 static inline
 void
 update_rtt(uint32_t echo_ts)
 {
-	uint32_t packet_rtt = get_tcp_clock() - echo_ts;
+	uint32_t packet_rtt = cur_ms_ts() - echo_ts;
 
 	/* FIXME: use Jacobson/Karels algorithm to calc RTT */
 	cur_conn->rtt = (cur_conn->rtt * 0.8) + (packet_rtt * 0.2);
@@ -131,7 +122,7 @@ static inline
 void
 init_rtt(uint32_t echo_ts)
 {
-	cur_conn->rtt = get_tcp_clock() - echo_ts;
+	cur_conn->rtt = cur_ms_ts() - echo_ts;
 }
 
 //returns x - y taking account of the wraparound
@@ -347,7 +338,7 @@ send_tcp_syn_ack(void)
 
 	/* XXX */
 	syn_ack_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
-	syn_ack_tcp_packet.opts.ts.ts           = htonl(get_tcp_clock());
+	syn_ack_tcp_packet.opts.ts.ts           = htonl(cur_ms_ts());
 	syn_ack_tcp_packet.opts.ts.echo         = cur_conn->ts;
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
@@ -365,7 +356,7 @@ send_tcp_ack(void)
 	setup_ip_hdr(&ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&ack_tcp_packet.tcp);
 
-	ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock());
+	ack_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
 	ack_tcp_packet.opts.ts.echo = cur_conn->ts;
 
 	tcp_ack_checksum();
@@ -382,7 +373,7 @@ send_tcp_data(char *packet_buf, char *data, uint16_t len)
 	setup_ip_hdr(&data_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
 	setup_tcp_hdr(&data_tcp_packet.tcp);
 
-	data_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock());
+	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
 	data_tcp_packet.opts.ts.echo = cur_conn->ts;
 
 	tcp_data_checksum(data, len);
@@ -399,7 +390,7 @@ send_tcp_fin_ack(void)
 	setup_ip_hdr(&fin_ack_tcp_packet.ip, 0);
 	setup_tcp_hdr(&fin_ack_tcp_packet.tcp);
 
-	fin_ack_tcp_packet.opts.ts.ts   = htonl(get_tcp_clock());
+	fin_ack_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
 	fin_ack_tcp_packet.opts.ts.echo = cur_conn->ts;
 
 	tcp_fin_ack_checksum();

@@ -19,6 +19,12 @@
 #ifndef _ETH_H
 #define _ETH_H
 
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+#include <sys/time.h>
+
 #ifndef likely
 #define likely(x)   __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -36,9 +42,27 @@
 	_a < _b ? _a : _b;  \
 })
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define ARRAY_SIZE(arr) \
+		(sizeof(arr) / sizeof((arr)[0]))
 
-#include <stdbool.h>
+static inline
+uint64_t
+cur_us_ts(void)
+{
+	struct timeval tv;
 
+	gettimeofday(&tv, NULL);
+	return 1000000 * (uint64_t) tv.tv_sec + tv.tv_usec;
+}
+
+static inline
+uint32_t
+cur_ms_ts(void)
+{
+	struct timeval tv;
+
+	gettimeofday(&tv, 0);
+	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
 #endif
 
