@@ -21,6 +21,7 @@
 #ifndef _ETH_DATASTRUCT_LIST
 #define _ETH_DATASTRUCT_LIST
 
+#include <eth.h>
 #include <stddef.h>
 
 typedef struct list_head_s {
@@ -58,12 +59,25 @@ list_add_tail(list_head_t *entry, list_head_t *head)
 	__list_add(entry, head->prev, head);
 }
 
+/*
+ * after deleting we set next and prev to NULL, so we can tell if an entry is
+ * attached to a list
+ */
 static inline
 void
 list_del(list_head_t *entry)
 {
 	entry->next->prev = entry->prev;
 	entry->prev->next = entry->next;
+
+	entry->next       = NULL;
+	entry->prev       = NULL;
+}
+
+static inline
+bool
+list_head_attached(list_head_t *entry) {
+	return entry->next && entry->prev;
 }
 
 static inline
