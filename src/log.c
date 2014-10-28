@@ -72,6 +72,17 @@ log_info(const char *msg, ...)
 }
 
 void
+log_warn(const char *msg, ...)
+{
+	va_list args;
+
+	va_start(args, msg);
+	do_log(msg, args, PRINT_YELLOW "warn " PRINT_RST);
+	va_end(args);
+}
+
+
+void
 log_error(const char *msg, ...)
 {
 	va_list args;
