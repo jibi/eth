@@ -124,6 +124,13 @@ static void ack_segment(void);
 
 static inline
 void
+init_rtt(uint32_t echo_ts)
+{
+	cur_conn->rtt = cur_ms_ts() - echo_ts;
+}
+
+static inline
+void
 update_rtt(uint32_t echo_ts)
 {
 	uint32_t packet_rtt = cur_ms_ts() - echo_ts;
@@ -133,10 +140,10 @@ update_rtt(uint32_t echo_ts)
 }
 
 static inline
-void
-init_rtt(uint32_t echo_ts)
+uint32_t
+retx_ts()
 {
-	cur_conn->rtt = cur_ms_ts() - echo_ts;
+	return cur_ms_ts() + ((cur_conn->rtt + 1) * 4);
 }
 
 //returns x - y taking account of the wraparound
@@ -988,7 +995,7 @@ track_unackd_segment(void)
 	empty_before = list_empty(&cur_conn->unackd_segs);
 
 	seg->seq     = seq;
-	seg->retx_ts = cur_ms_ts() + ((cur_conn->rtt + 1) * 100);
+	seg->retx_ts = retx_ts();
 
 	list_add_tail(&seg->head, &cur_conn->unackd_segs);
 
@@ -1130,9 +1137,9 @@ tcp_retransm_segment(tcp_unackd_segment_t *seg)
 
 	memcpy(tx_desc.buf, &data_tcp_packet, sizeof(data_tcp_packet));
 
-	seg->retx_ts = cur_ms_ts() + ((cur_conn->rtt + 1) * 100);
+	seg->retx_ts = retx_ts();
 
-	cur_conn->last_retx_seg_seq = seq;
-	cur_conn->last_retx_seg_ts  = cur_ms_ts() + ((cur_conn->rtt + 1) * 100);
+	cur_conn->last_retx_seg_seq = seg->seq;
+	cur_conn->last_retx_seg_ts  = seg->retx_ts;
 }
 

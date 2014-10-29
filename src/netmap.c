@@ -174,7 +174,7 @@ nm_retx_loop(void)
 	list_for_each_entry_safe(min_retx_ts, tmp, &per_conn_min_retx_ts, head) {
 		tcp_unackd_segment_t *seg, *tmp2;
 
-		if (min_retx_ts->retx_ts > cur_ms_ts()) {
+		if (min_retx_ts->retx_ts >= cur_ms_ts()) {
 			break;
 		}
 
@@ -182,7 +182,7 @@ nm_retx_loop(void)
 		set_cur_sock(cur_conn->sock)
 
 		list_for_each_entry_safe(seg, tmp2, &cur_conn->unackd_segs, head) {
-			if (seg->retx_ts > cur_ms_ts()) {
+			if (seg->retx_ts >= cur_ms_ts()) {
 				break;
 			}
 
