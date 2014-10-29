@@ -170,6 +170,7 @@ void
 nm_retx_loop(void)
 {
 	tcp_per_conn_min_retx_ts_t *min_retx_ts, *tmp;
+	bool did_retx = false;
 
 	list_for_each_entry_safe(min_retx_ts, tmp, &per_conn_min_retx_ts, head) {
 		tcp_unackd_segment_t *seg, *tmp2;
@@ -186,11 +187,14 @@ nm_retx_loop(void)
 				break;
 			}
 
+			did_retx = true;
 			tcp_retransm_segment(seg);
 		}
 	}
 
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	if (did_retx) {
+		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	}
 }
 
 static inline
