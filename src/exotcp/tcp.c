@@ -141,7 +141,7 @@ update_rtt(uint32_t echo_ts)
 
 static inline
 uint32_t
-retx_ts()
+retx_ts(void)
 {
 	return cur_ms_ts() + ((cur_conn->rtt + 1) * 4);
 }
@@ -593,11 +593,78 @@ process_3wh_ack(void)
 	cur_conn->state = ESTABLISHED;
 }
 
+static inline
+void
+process_tcp_segment_data(void)
+{
+	char     *payload = ((char *) cur_pkt->tcp_hdr) + (cur_pkt->tcp_hdr->data_offset * 4);
+	uint16_t len      = tcp_payload_len(cur_pkt);
+
+	if (cur_conn->data_len + len > TCP_WINDOW_SIZE) {
+		send_tcp_rst();
+		delete_tcp_conn();
+
+		return;
+	}
+
+	//TODO: check we do not go beyond the TCP receive window size
+	memcpy(cur_conn->data_buffer + cur_conn->data_len, payload, len);
+	cur_conn->data_len += len;
+
+	cur_conn->last_recv_byte += len;
+	send_tcp_ack();
+
+	if (cur_pkt->tcp_hdr->flags & TCP_FLAG_PSH) {
+		handle_http_request();
+
+		if (cur_conn->http_response->parser->parsed) {
+			cur_conn->http_response_start_seq = cur_conn->last_sent_byte + 1;
+		}
+	}
+}
+
+static inline
+void
+process_tcp_segment_ack(void) {
+	uint32_t new_ack = ntohl(cur_pkt->tcp_hdr->ack);
+
+	if (cur_conn->last_ackd_byte == new_ack) {
+		/*
+		 * if this is an ack to the segment just before the last one we had
+		 * retransmitted, and the 4 * rtt timeout has not elapsed, do not
+		 * retransmit. Since we send x packets in a row, chances are we receive
+		 * x ACK packets all equals.
+		 */
+		if (cur_conn->last_retx_seg_seq == new_ack && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
+			return;
+		}
+
+		/*
+		 * probably the next segment got lost:
+		 * retransmit
+		 */
+		tcp_unackd_segment_t *seg, *tmp;
+
+		list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
+			if (seg->seq != new_ack) {
+				continue;
+			}
+
+			tcp_retransm_segment(seg);
+			break;
+		}
+	} else {
+		cur_conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
+		cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->win_scale) - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+
+		ack_segment();
+	}
+
+}
+
 void
 process_tcp_segment(void)
 {
-	char *payload;
-	uint16_t  len = tcp_payload_len(cur_pkt);
 
 	parse_tcp_options(cur_pkt->tcp_hdr);
 
@@ -607,67 +674,12 @@ process_tcp_segment(void)
 		return;
 	}
 
-	if (len) {
-		payload = ((char *) cur_pkt->tcp_hdr) + (cur_pkt->tcp_hdr->data_offset * 4);
-
-		if (cur_conn->data_len + len > TCP_WINDOW_SIZE) {
-			send_tcp_rst();
-			delete_tcp_conn();
-
-			return;
-		}
-
-		//TODO: check we do not go beyond the TCP receive window size
-		memcpy(cur_conn->data_buffer + cur_conn->data_len, payload, len);
-		cur_conn->data_len += len;
-
-		cur_conn->last_recv_byte += len;
-		send_tcp_ack();
-
-		if (cur_pkt->tcp_hdr->flags & TCP_FLAG_PSH) {
-			handle_http_request();
-
-			if (cur_conn->http_response->parser->parsed) {
-				cur_conn->http_response_start_seq = cur_conn->last_sent_byte + 1;
-			}
-		}
+	if (tcp_payload_len(cur_pkt)) {
+		process_tcp_segment_data();
 	}
 
 	if (cur_pkt->tcp_hdr->flags & TCP_FLAG_ACK) {
-		uint32_t new_ack = ntohl(cur_pkt->tcp_hdr->ack);
-
-		if (cur_conn->last_ackd_byte == new_ack) {
-			/*
-			 * if this is an ack to the segment just before the last one we had
-			 * retransmitted, and the 4 * rtt timeout has not elapsed, do not
-			 * retransmit. Since we send x packets in a row, chances are we receive
-			 * x ACK packets all equals.
-			 */
-			if (cur_conn->last_retx_seg_seq == new_ack && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
-				return;
-			}
-
-			/*
-			 * probably the next segment got lost:
-			 * retransmit
-			 */
-			tcp_unackd_segment_t *seg, *tmp;
-
-			list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
-				if (seg->seq != new_ack) {
-					continue;
-				}
-
-				tcp_retransm_segment(seg);
-				break;
-			}
-		} else {
-			cur_conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
-			cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->win_scale) -
-				(cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
-
-			ack_segment();
-		}
+		process_tcp_segment_ack();
 	}
 	 //TODO: check if something got missed and ask for retransmission
 }
