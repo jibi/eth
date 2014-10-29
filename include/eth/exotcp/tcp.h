@@ -161,7 +161,7 @@ typedef enum tcp_state_e {
 typedef struct tcp_conn_key_s {
 	uint32_t src_addr;
 	uint16_t src_port;
-} tcp_conn_key_t;
+} __attribute__((packed)) tcp_conn_key_t;
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
