@@ -186,10 +186,6 @@ nm_retx_loop(void)
 				break;
 			}
 
-			if (cur_conn->last_retx_seg_seq == seg->seq && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
-				return;
-			}
-
 			tcp_retransm_segment(seg);
 		}
 	}
