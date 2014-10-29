@@ -163,11 +163,24 @@ typedef struct tcp_conn_key_s {
 	uint16_t src_port;
 } __attribute__((packed)) tcp_conn_key_t;
 
+typedef struct tcp_unackd_segment_s {
+	uint32_t    seq;
+	uint32_t    retx_ts;
+
+	list_head_t head;
+} tcp_unackd_segment_t;
+
+typedef struct tcp_per_conn_min_retx_ts_s {
+	uint32_t   retx_ts;
+	tcp_conn_t *conn;
+
+	list_head_t head;
+} tcp_per_conn_min_retx_ts_t;
+
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
-	list_head_t     nm_tcp_conn_list_head;
-
-	socket_t       *sock;
+	list_head_t nm_tcp_conn_list_head;
+	socket_t    *sock;
 
 	uint32_t last_recv_byte;
 	uint32_t last_sent_byte;
@@ -176,6 +189,12 @@ typedef struct tcp_conn_s {
 	tcp_state_t state;
 
 	uint32_t recv_eff_window;
+
+	list_head_t                unackd_segs;
+	tcp_per_conn_min_retx_ts_t min_retx_ts;
+
+	uint32_t last_retx_seg_seq;
+	uint32_t last_retx_seg_ts;
 
 	uint16_t mss;
 	uint8_t  win_scale;
@@ -199,15 +218,22 @@ typedef struct tcp_conn_s {
 	size_t  data_len;
 
 	http_response_t *http_response;
+	uint32_t         http_response_start_seq;
 } tcp_conn_t;
 
 extern hash_table_t *tcb_hash;
 extern tcp_conn_t   *cur_conn;
+extern list_head_t  per_conn_min_retx_ts;
 
 void init_tcp(void);
 void process_tcp(void);
 int tcp_conn_has_data_to_send(void);
 void tcp_conn_send_data(void);
+
+void sort_unackd_segments(void);
+void sort_min_retx_ts(void);
+
+void tcp_retransm_segment(tcp_unackd_segment_t *seg);
 
 #define set_cur_conn(x) cur_conn = x
 

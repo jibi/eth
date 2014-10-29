@@ -96,12 +96,57 @@ recv_packet(struct netmap_ring *recv_ring)
 
 static inline
 void
+sort_all_unackd_segments() {
+	tcp_conn_t *conn, *n;
+	tcp_unackd_segment_t *seg;
+	/*
+	 * sort all tcp connections unacked segments list
+	 */
+
+	list_for_each_entry_safe(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
+
+		if (!list_empty(&cur_conn->unackd_segs)) {
+			set_cur_conn(conn);
+
+			sort_unackd_segments();
+
+			seg = list_first_entry(&cur_conn->unackd_segs, tcp_unackd_segment_t, head);
+			cur_conn->min_retx_ts.retx_ts = seg->retx_ts;
+		}
+	}
+
+	sort_min_retx_ts();
+}
+
+static inline
+void
 nm_sync_rx_tx_ring() {
+	int timeout;
 	struct pollfd nm_fds;
+
 	nm_fds.fd     = NETMAP_FD(netmap);
 	nm_fds.events = POLLIN;
 
-	poll(&nm_fds, 1, nm_has_data_to_send ? 0 : -1);
+	/* the timeout logic is the following:
+	 *
+	 * * if there is data to send, just don't set a timeout
+	 *
+	 * * Otherwise, in case there are packets that are not yet acknowledged, set the timeout
+	 *   to the the earlier timeout of retransmission.
+	 *
+	 * * Otherwise put poll in a blocking state
+	 */
+
+	if (nm_has_data_to_send) {
+		timeout = 0;
+	} else if (! list_empty(&per_conn_min_retx_ts)) {
+		tcp_per_conn_min_retx_ts_t *min_retx_ts = list_first_entry(&per_conn_min_retx_ts, tcp_per_conn_min_retx_ts_t, head);
+		timeout = min_retx_ts->retx_ts - cur_ms_ts();
+	} else {
+		timeout = -1;
+	}
+
+	poll(&nm_fds, 1, timeout);
 }
 
 static inline
@@ -114,6 +159,39 @@ nm_recv_loop(void)
 
 	while (!nm_ring_empty(recv_ring)) {
 		recv_packet(recv_ring);
+	}
+
+	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+
+}
+
+static inline
+void
+nm_retx_loop(void)
+{
+	tcp_per_conn_min_retx_ts_t *min_retx_ts, *tmp;
+
+	list_for_each_entry_safe(min_retx_ts, tmp, &per_conn_min_retx_ts, head) {
+		tcp_unackd_segment_t *seg, *tmp2;
+
+		if (min_retx_ts->retx_ts > cur_ms_ts()) {
+			break;
+		}
+
+		set_cur_conn(min_retx_ts->conn);
+		set_cur_sock(cur_conn->sock)
+
+		list_for_each_entry_safe(seg, tmp2, &cur_conn->unackd_segs, head) {
+			if (seg->retx_ts > cur_ms_ts()) {
+				break;
+			}
+
+			if (cur_conn->last_retx_seg_seq == seg->seq && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
+				return;
+			}
+
+			tcp_retransm_segment(seg);
+		}
 	}
 
 	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
@@ -140,12 +218,12 @@ nm_send_loop(void)
 
 		tcp_conn_t *n;
 		list_for_each_entry_safe_from(nm_send_loop_cur_conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
+			set_cur_conn(nm_send_loop_cur_conn);
+
 			if (unlikely(nm_ring_empty(send_ring))) {
 				resume_loop = true;
 				break;
 			}
-
-			set_cur_conn(nm_send_loop_cur_conn);
 
 			if (tcp_conn_has_data_to_send()) {
 				set_cur_sock(cur_conn->sock);
@@ -155,7 +233,6 @@ nm_send_loop(void)
 			}
 		}
 	}
-
 }
 
 void
@@ -165,7 +242,11 @@ nm_loop(void)
 		nm_sync_rx_tx_ring();
 
 		nm_recv_loop();
+		sort_all_unackd_segments();
+
+		nm_retx_loop();
 		nm_send_loop();
+		sort_all_unackd_segments();
 	}
 }
 
@@ -186,6 +267,11 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc)
 
 	ring = NETMAP_TXRING(netmap->nifp, 0);
 
+	if (nm_ring_empty(ring)) {
+		log_warn("send ring full in nm_get_tx_buff(), syncing");
+		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	}
+
 	i    = ring->cur;
 	idx  = ring->slot[i].buf_idx;
 
@@ -193,18 +279,8 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc)
 	tx_desc->len = &ring->slot[i].len;
 
 	ring->head = ring->cur = nm_ring_next(ring, i);
-
 }
 
-/*
- * since:
- * - nm_send_packet and nm_send_packet_with_data are called only:
- *   - during the nm_recv_loop
- *   - once for each packet received
- * - we can assume that the NIC send ring is the same size of the recv ring
- *
- * we are assured that nm_get_tx_buff will always return a tx_buff.
- */
 void
 nm_send_packet(void *packet, uint16_t packet_len)
 {

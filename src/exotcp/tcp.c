@@ -35,6 +35,7 @@
 #include <eth/exotcp/ip.h>
 #include <eth/exotcp/tcp.h>
 
+#include <eth/datastruct/list.h>
 #include <eth/datastruct/hash.h>
 
 #include <eth/http11.h>
@@ -47,7 +48,17 @@
  * this table is used to keep track of all TCP connections.
  */
 hash_table_t *tcb_hash;
+
+/*
+ * pointer to current connection
+ */
 tcp_conn_t   *cur_conn;
+
+/*
+ * list of tcp_per_conn_min_retx_ts_t:
+ * each entry contains a tcp connection minimum retx timestamp
+ */
+list_head_t  per_conn_min_retx_ts;
 
 /*
  * prebuilt packet: sent in the phase 2 of the TCP three way handshake
@@ -107,6 +118,9 @@ static inline void tcp_ack_checksum(void);
 static inline void tcp_data_checksum(char *data, uint16_t data_len);
 static inline void tcp_fin_ack_checksum(void);
 static inline void tcp_rst_checksum(void);
+
+static void track_unackd_segment(void);
+static void ack_segment(void);
 
 static inline
 void
@@ -247,6 +261,8 @@ init_tcp(void)
 	init_rst_tcp_packet();
 
 	tcb_hash = hash_table_init(tcp_key_hash_func, cmp_tcp_conn);
+
+	list_init(&per_conn_min_retx_ts);
 }
 
 void
@@ -376,7 +392,13 @@ send_tcp_data(char *packet_buf, char *data, uint16_t len)
 	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
 	data_tcp_packet.opts.ts.echo = cur_conn->ts;
 
+#ifdef DEBUG_TCP_RETX
+	static int i = 1;
+	if (i++ % 100000)
+#endif
 	tcp_data_checksum(data, len);
+
+	track_unackd_segment();
 
 	memcpy(packet_buf, &data_tcp_packet, sizeof(data_tcp_packet));
 }
@@ -468,8 +490,17 @@ new_tcp_conn(packet_t *p)
 
 	conn->rtt             = 1000;
 
+	conn->last_retx_seg_seq = 0;
+	conn->last_retx_seg_ts  = 0;
+
 	hash_table_insert(tcb_hash, conn->key, conn);
 	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
+
+	list_init(&conn->unackd_segs);
+	conn->min_retx_ts.conn = conn;
+
+	conn->min_retx_ts.head.next = NULL;
+	conn->min_retx_ts.head.prev = NULL;
 
 	return conn;
 }
@@ -486,7 +517,13 @@ delete_tcp_conn(void)
 		nm_send_loop_cur_conn = list_next_entry(nm_send_loop_cur_conn, nm_tcp_conn_list_head);
 	}
 
+	/* delete conn from nm global conn list */
 	list_del(&cur_conn->nm_tcp_conn_list_head);
+
+	/* delete conn min retx entry from global retx list */
+	if (list_head_attached(&cur_conn->min_retx_ts.head)) {
+		list_del(&cur_conn->min_retx_ts.head);
+	}
 
 	free(cur_conn->key);
 	free(cur_conn);
@@ -553,7 +590,7 @@ void
 process_tcp_segment(void)
 {
 	char *payload;
-	uint16_t  len = tcp_payload_len(cur_pkt); //(ip_payload_len(cur_pkt->ip_hdr) - (cur_pkt->tcp_hdr->data_offset * 4));
+	uint16_t  len = tcp_payload_len(cur_pkt);
 
 	parse_tcp_options(cur_pkt->tcp_hdr);
 
@@ -582,16 +619,50 @@ process_tcp_segment(void)
 
 		if (cur_pkt->tcp_hdr->flags & TCP_FLAG_PSH) {
 			handle_http_request();
-		}
 
+			if (cur_conn->http_response->parser->parsed) {
+				cur_conn->http_response_start_seq = cur_conn->last_sent_byte + 1;
+			}
+		}
 	}
 
 	if (cur_pkt->tcp_hdr->flags & TCP_FLAG_ACK) {
-		 //TODO: check if something got missed and ask for retransmission
-		cur_conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
-		cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->win_scale) -
-			(cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+		uint32_t new_ack = ntohl(cur_pkt->tcp_hdr->ack);
+
+		if (cur_conn->last_ackd_byte == new_ack) {
+			/*
+			 * if this is an ack to the segment just before the last one we had
+			 * retransmitted, and the 4 * rtt timeout has not elapsed, do not
+			 * retransmit. Since we send x packets in a row, chances are we receive
+			 * x ACK packets all equals.
+			 */
+			if (cur_conn->last_retx_seg_seq == new_ack && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
+				return;
+			}
+
+			/*
+			 * probably the next segment got lost:
+			 * retransmit
+			 */
+			tcp_unackd_segment_t *seg, *tmp;
+
+			list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
+				if (seg->seq != new_ack) {
+					continue;
+				}
+
+				tcp_retransm_segment(seg);
+				break;
+			}
+		} else {
+			cur_conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
+			cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->win_scale) -
+				(cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+
+			ack_segment();
+		}
 	}
+	 //TODO: check if something got missed and ask for retransmission
 }
 
 void
@@ -746,7 +817,6 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx) {
 			break;
 		}
 	}
-
 }
 
 void
@@ -758,6 +828,7 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 	int             iovcnt;
 
 	size_t   start_pos;
+
 	char    *payload_buf;
 	uint16_t payload_len;
 	uint16_t payload_offset;
@@ -848,6 +919,12 @@ tcp_conn_send_data(void)
 	if (! http_res_has_file_to_send(res)) {
 		res->sent = true;
 
+		/*
+		 * TODO: free http reponse only when all segments are transmitted (i.e.
+		 * there are no segments waiting in the retx list
+		 */
+
+#if 0
 		free(res->header_buf);
 		free(res->parser);
 		close(res->file_fd);
@@ -855,6 +932,8 @@ tcp_conn_send_data(void)
 
 		cur_conn->data_len      = 0;
 		cur_conn->http_response = NULL;
+#endif
+
 	}
 }
 
@@ -896,5 +975,164 @@ tcp_rst_checksum(void)
 {
 	rst_tcp_packet.tcp.checksum =
 		tcp_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp, NULL, 0, NULL, 0);
+}
+
+static
+void
+track_unackd_segment(void)
+{
+	bool empty_before;
+	uint32_t seq              = cur_conn->last_sent_byte + 1;
+	tcp_unackd_segment_t *seg = malloc(sizeof(tcp_unackd_segment_t));
+
+	empty_before = list_empty(&cur_conn->unackd_segs);
+
+	seg->seq     = seq;
+	seg->retx_ts = cur_ms_ts() + ((cur_conn->rtt + 1) * 100);
+
+	list_add_tail(&seg->head, &cur_conn->unackd_segs);
+
+	/*
+	 * if there were no unackd segments for this connection before, we need to add
+	 * the entry to the global min_rets_ts list
+	 */
+	if (empty_before) {
+		list_add(&cur_conn->min_retx_ts.head, &per_conn_min_retx_ts);
+	}
+
+	log_debug2("tracking unackd segment %d (conn %p)", seq, cur_conn);
+}
+
+static
+int
+cmp_unackd_seg(void *data, list_head_t *a, list_head_t *b)
+{
+	tcp_unackd_segment_t *_a = list_entry(a, tcp_unackd_segment_t, head);
+	tcp_unackd_segment_t *_b = list_entry(b, tcp_unackd_segment_t, head);
+
+	if (_a->retx_ts < _b->retx_ts) {
+		return -1;
+	} else if (_a->retx_ts == _b->retx_ts) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+static
+int
+cmp_min_retx_ts(void *data, list_head_t *a, list_head_t *b)
+{
+	tcp_per_conn_min_retx_ts_t *_a = list_entry(a, tcp_per_conn_min_retx_ts_t, head);
+	tcp_per_conn_min_retx_ts_t *_b = list_entry(b, tcp_per_conn_min_retx_ts_t, head);
+
+	if (_a->retx_ts < _b->retx_ts) {
+		return -1;
+	} else if (_a->retx_ts == _b->retx_ts) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+void
+sort_unackd_segments(void)
+{
+	list_sort(NULL, &cur_conn->unackd_segs, cmp_unackd_seg);
+}
+
+void
+sort_min_retx_ts(void)
+{
+	list_sort(NULL, &per_conn_min_retx_ts, cmp_min_retx_ts);
+}
+
+static
+void
+ack_segment(void)
+{
+	uint32_t seq;
+	bool     deleted = false;
+
+	tcp_unackd_segment_t *seg;
+	tcp_unackd_segment_t *tmp;
+
+	seq = cur_conn->last_ackd_byte;
+
+	list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
+		if (cmp_seq(seg->seq, seq) < 0) {
+			deleted = true;
+			log_debug2("removing segment %d (conn %p) from unacked segments array", seg->seq, cur_conn);
+
+			list_del(&seg->head);
+		}
+	}
+
+	if (deleted && list_empty(&cur_conn->unackd_segs)) {
+		list_del(&cur_conn->min_retx_ts.head);
+	}
+}
+
+void
+tcp_retransm_segment(tcp_unackd_segment_t *seg)
+{
+	http_response_t *res;
+
+	uint32_t start_byte;
+	uint32_t header_start;
+	uint32_t header_len;
+	uint32_t file_start;
+	uint32_t file_len;
+
+	nm_tx_desc_t tx_desc;
+
+	char    *payload_buf;
+	uint16_t payload_len;
+	uint32_t seq;
+
+	seq        = seg->seq;
+	start_byte = cmp_seq(seq, cur_conn->http_response_start_seq);
+
+	res = cur_conn->http_response;
+
+	if (start_byte < res->header_len) {
+		header_start = start_byte;
+		header_len   = MIN(ETH_MTU - sizeof(data_tcp_packet), res->header_len - header_start);
+	} else {
+		header_len = 0;
+	}
+
+	if (ETH_MTU - sizeof(data_tcp_packet) - header_len > 0) {
+		file_start = start_byte - res->header_len;
+		file_len   = MIN(ETH_MTU - sizeof(data_tcp_packet) - header_len, res->file_len - file_start);
+	}
+
+	nm_get_tx_buff(&tx_desc);
+
+	payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc.buf);
+	payload_len = header_len + file_len;
+
+	*tx_desc.len               = sizeof(data_tcp_packet) + payload_len;
+	cur_conn->recv_eff_window -= payload_len;
+
+	memcpy(payload_buf, res->header_buf + header_start, header_len);
+	pread(res->file_fd, payload_buf + header_len, file_len, file_start);
+
+	setup_eth_hdr(&data_tcp_packet.eth);
+	setup_ip_hdr(&data_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + payload_len);
+	setup_tcp_hdr(&data_tcp_packet.tcp);
+
+	data_tcp_packet.tcp.seq      = htonl(seq);
+	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
+	data_tcp_packet.opts.ts.echo = cur_conn->ts;
+
+	tcp_data_checksum(payload_buf, payload_len);
+
+	memcpy(tx_desc.buf, &data_tcp_packet, sizeof(data_tcp_packet));
+
+	seg->retx_ts = cur_ms_ts() + ((cur_conn->rtt + 1) * 100);
+
+	cur_conn->last_retx_seg_seq = seq;
+	cur_conn->last_retx_seg_ts  = cur_ms_ts() + ((cur_conn->rtt + 1) * 100);
 }
 
