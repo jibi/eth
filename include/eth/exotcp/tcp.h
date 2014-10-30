@@ -29,6 +29,8 @@ typedef struct http_response_s http_response_t;
 #include <eth/exotcp.h>
 #include <eth/http11.h>
 
+#include <eth/exotcp/eth.h>
+
 #include <eth/datastruct/list.h>
 #include <eth/datastruct/hash.h>
 
@@ -224,6 +226,52 @@ typedef struct tcp_conn_s {
 extern hash_table_t *tcb_hash;
 extern tcp_conn_t   *cur_conn;
 extern list_head_t  per_conn_min_retx_ts;
+
+static inline
+bool
+flag_syn(tcp_hdr_t *tcp_hdr) {
+	return tcp_hdr->flags & TCP_FLAG_SYN;
+}
+
+static inline
+bool
+flag_ack(tcp_hdr_t *tcp_hdr) {
+	return tcp_hdr->flags & TCP_FLAG_ACK;
+}
+
+static inline
+bool
+flag_psh(tcp_hdr_t *tcp_hdr) {
+	return tcp_hdr->flags & TCP_FLAG_PSH;
+}
+
+static inline
+bool
+flag_fin(tcp_hdr_t *tcp_hdr) {
+	return tcp_hdr->flags & TCP_FLAG_FIN;
+}
+
+static inline
+bool
+tcp_has_options(tcp_hdr_t *tcp_hdr) {
+	return tcp_hdr->data_offset > 5;
+}
+
+static inline
+int
+tcp_conn_has_open_window(void)
+{
+	return cur_conn->recv_eff_window > ETH_MTU;
+}
+
+static inline
+int
+tcp_conn_has_data_to_send(void)
+{
+	http_response_t *res = cur_conn->http_response;
+
+	return res && res->parser->parsed && (! res->sent) && tcp_conn_has_open_window();
+}
 
 void init_tcp(void);
 void process_tcp(void);

@@ -76,7 +76,8 @@ list_del(list_head_t *entry)
 
 static inline
 bool
-list_head_attached(list_head_t *entry) {
+list_head_attached(list_head_t *entry)
+{
 	return entry->next && entry->prev;
 }
 

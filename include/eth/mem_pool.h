@@ -46,7 +46,8 @@ typedef struct mem_pool_s {
 
 static inline
 mem_pool_t *
-mem_pool_new(uint32_t obj_size, uint32_t obj_count) {
+mem_pool_new(uint32_t obj_size, uint32_t obj_count)
+{
 	mem_pool_t *mem_pool;
 	uint32_t   i;
 
@@ -68,7 +69,8 @@ mem_pool_new(uint32_t obj_size, uint32_t obj_count) {
 
 static inline
 void *
-mem_pool_malloc(mem_pool_t *mem_pool) {
+mem_pool_malloc(mem_pool_t *mem_pool)
+{
 	mem_pool_item_t *mem_pool_item = list_first_entry(&mem_pool->free_list, mem_pool_item_t, head);
 	list_del(&mem_pool_item->head);
 	list_add(&mem_pool_item->head, &mem_pool->used_list);
@@ -78,7 +80,8 @@ mem_pool_malloc(mem_pool_t *mem_pool) {
 
 static inline
 void
-mem_pool_free(mem_pool_t *mem_pool, void *data) {
+mem_pool_free(mem_pool_t *mem_pool, void *data)
+{
 	mem_pool_item_t *mem_pool_item = list_first_entry(&mem_pool->used_list, mem_pool_item_t, head);
 	list_del(&mem_pool_item->head);
 	list_add(&mem_pool_item->head, &mem_pool->free_list);

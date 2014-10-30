@@ -22,7 +22,6 @@
 #include <sys/types.h>
 
 #include <eth.h>
-#include <eth/exotcp/tcp.h>
 
 #define BUFFER_LEN 1024
 

@@ -28,6 +28,7 @@
 
 #include <eth.h>
 #include <eth/http11.h>
+#include <eth/exotcp/tcp.h>
 
 static inline
 void

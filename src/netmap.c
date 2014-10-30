@@ -96,7 +96,8 @@ recv_packet(struct netmap_ring *recv_ring)
 
 static inline
 void
-sort_all_unackd_segments() {
+sort_all_unackd_segments(void)
+{
 	tcp_conn_t *conn, *n;
 	tcp_unackd_segment_t *seg;
 	/*
@@ -120,7 +121,8 @@ sort_all_unackd_segments() {
 
 static inline
 void
-nm_sync_rx_tx_ring() {
+nm_sync_rx_tx_ring(void)
+{
 	int timeout;
 	struct pollfd nm_fds;
 
