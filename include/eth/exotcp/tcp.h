@@ -198,11 +198,13 @@ typedef struct tcp_conn_s {
 	uint32_t last_retx_seg_seq;
 	uint32_t last_retx_seg_ts;
 
-	uint16_t mss;
-	uint8_t  win_scale;
-	uint8_t  sack_perm;
-	uint32_t ts;
-	uint32_t echo_ts;
+	struct {
+		uint16_t mss;
+		uint8_t  win_scale;
+		uint8_t  sack_perm;
+		uint32_t ts;
+		uint32_t echo_ts;
+	} client_opts;
 
 	uint32_t rtt;
 	/*

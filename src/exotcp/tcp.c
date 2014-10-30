@@ -299,8 +299,8 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 				cur_opt++;
 				break;
 			case 2:
-				cur_conn->mss = ntohs((short) *(cur_opt + 2));
-				log_debug2("\tmss: %d", cur_conn->mss);
+				cur_conn->client_opts.mss = ntohs((short) *(cur_opt + 2));
+				log_debug2("\tmss: %d", cur_conn->client_opts.mss);
 
 				cur_opt += 4;
 				break;
@@ -309,7 +309,7 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 
 				if (cur_conn->state == SYN_RCVD) {
 					/* win scaling is only valid during the 3wh */
-					cur_conn->win_scale = *(cur_opt + 2);
+					cur_conn->client_opts.win_scale = *(cur_opt + 2);
 				}
 
 				cur_opt += 3;
@@ -319,7 +319,7 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 
 				if (cur_conn->state == SYN_RCVD) {
 					/* SACK permitted is only valid during the 3wh */
-					cur_conn->sack_perm = 1;
+					cur_conn->client_opts.sack_perm = 1;
 				}
 
 				cur_opt += 2;
@@ -332,15 +332,15 @@ parse_tcp_options(tcp_hdr_t *tcp_hdr)
 				cur_opt += *(cur_opt + 1);
 				break;
 			case 8:
-				cur_conn->ts      = *((int *) (cur_opt + 2));
-				cur_conn->echo_ts = *((int *) (cur_opt + 6));
+				cur_conn->client_opts.ts      = *((int *) (cur_opt + 2));
+				cur_conn->client_opts.echo_ts = *((int *) (cur_opt + 6));
 
-				log_debug2("\ts: %d; echo ts: %d", ntohl(cur_conn->ts), ntohl(cur_conn->echo_ts));
+				log_debug2("\ts: %d; echo ts: %d", ntohl(cur_conn->client_opts.ts), ntohl(cur_conn->client_opts.echo_ts));
 
-				if (cur_conn->echo_ts) {
+				if (cur_conn->client_opts.echo_ts) {
 					switch (cur_conn->state) {
-						case ESTABLISHED: update_rtt(ntohl(cur_conn->echo_ts)); break;
-						case SYN_SENT:    init_rtt(ntohl(cur_conn->echo_ts));   break;
+						case ESTABLISHED: update_rtt(ntohl(cur_conn->client_opts.echo_ts)); break;
+						case SYN_SENT:    init_rtt(ntohl(cur_conn->client_opts.echo_ts));   break;
 						default: ;
 					}
 				}
@@ -371,7 +371,7 @@ send_tcp_syn_ack(void)
 	/* XXX */
 	syn_ack_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
 	syn_ack_tcp_packet.opts.ts.ts           = htonl(cur_ms_ts());
-	syn_ack_tcp_packet.opts.ts.echo         = cur_conn->ts;
+	syn_ack_tcp_packet.opts.ts.echo         = cur_conn->client_opts.ts;
 	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
 	tcp_syn_ack_checksum();
@@ -390,7 +390,7 @@ send_tcp_ack(void)
 	setup_tcp_hdr(&ack_tcp_packet.tcp);
 
 	ack_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	ack_tcp_packet.opts.ts.echo = cur_conn->ts;
+	ack_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 	tcp_ack_checksum();
 
@@ -408,7 +408,7 @@ send_tcp_data(char *packet_buf, char *data, uint16_t len)
 	setup_tcp_hdr(&data_tcp_packet.tcp);
 
 	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	data_tcp_packet.opts.ts.echo = cur_conn->ts;
+	data_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 #ifdef DEBUG_TCP_RETX
 	static int i = 1;
@@ -433,7 +433,7 @@ send_tcp_data_retx(char *packet_buf, char *data, uint16_t len, uint32_t seq)
 
 	data_tcp_packet.tcp.seq      = htonl(seq);
 	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	data_tcp_packet.opts.ts.echo = cur_conn->ts;
+	data_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 	tcp_data_checksum(data, len);
 
@@ -451,7 +451,7 @@ send_tcp_fin_ack(void)
 	setup_tcp_hdr(&fin_ack_tcp_packet.tcp);
 
 	fin_ack_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	fin_ack_tcp_packet.opts.ts.echo = cur_conn->ts;
+	fin_ack_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 	tcp_fin_ack_checksum();
 
@@ -525,11 +525,13 @@ new_tcp_conn()
 	conn->last_sent_byte  = rand_seq;
 	conn->state           = SYN_RCVD;
 	conn->recv_eff_window = 0;
-	conn->win_scale       = 0;
 	conn->data_len        = 0;
 	conn->http_response   = NULL;
 
 	conn->rtt             = 1000;
+
+	conn->client_opts.win_scale = 0;
+	conn->client_opts.sack_perm = 0;
 
 	conn->last_retx_seg_seq = 0;
 	conn->last_retx_seg_ts  = 0;
@@ -694,7 +696,7 @@ process_tcp_segment_ack(void)
 		}
 	} else {
 		cur_conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
-		cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->win_scale) - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+		cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->client_opts.win_scale) - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
 
 		ack_segment();
 	}
@@ -856,7 +858,7 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx)
 		 * * payload's length is not equal to MSS but there's no more
 		 * data to send (i.e. file_len is 0)
 		 */
-		if (payload_len == cur_conn->mss - sizeof(tcp_data_opts_t) || res->file_len == 0) {
+		if (payload_len == cur_conn->client_opts.mss - sizeof(tcp_data_opts_t) || res->file_len == 0) {
 			send_tcp_data(tx_desc.buf, payload_buf, payload_len);
 
 			cur_conn->last_sent_byte  += payload_len;
