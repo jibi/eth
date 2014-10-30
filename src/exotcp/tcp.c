@@ -38,6 +38,8 @@
 #include <eth/datastruct/list.h>
 #include <eth/datastruct/hash.h>
 
+#include <eth/mem_pool.h>
+
 #include <eth/http11.h>
 
 #define NETMAP_WITH_LIBS
@@ -59,6 +61,8 @@ tcp_conn_t   *cur_conn;
  * each entry contains a tcp connection minimum retx timestamp
  */
 list_head_t  per_conn_min_retx_ts;
+
+mem_pool_t *unacked_segments_pool;
 
 /*
  * prebuilt packet: sent in the phase 2 of the TCP three way handshake
@@ -270,6 +274,8 @@ init_tcp(void)
 	tcb_hash = hash_table_init(tcp_key_hash_func, cmp_tcp_conn);
 
 	list_init(&per_conn_min_retx_ts);
+
+	unacked_segments_pool = mem_pool_new(sizeof(tcp_unackd_segment_t), 4096);
 }
 
 void
@@ -1002,7 +1008,7 @@ track_unackd_segment(void)
 {
 	bool empty_before;
 	uint32_t seq              = cur_conn->last_sent_byte + 1;
-	tcp_unackd_segment_t *seg = malloc(sizeof(tcp_unackd_segment_t));
+	tcp_unackd_segment_t *seg = mem_pool_malloc(unacked_segments_pool);
 
 	empty_before = list_empty(&cur_conn->unackd_segs);
 
@@ -1084,6 +1090,8 @@ ack_segment(void)
 			log_debug2("removing segment %d (conn %p) from unacked segments array", seg->seq, cur_conn);
 
 			list_del(&seg->head);
+
+			mem_pool_free(unacked_segments_pool, seg);
 		}
 	}
 
