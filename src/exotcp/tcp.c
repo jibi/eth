@@ -945,20 +945,10 @@ tcp_conn_send_data(void)
 		res->sent = true;
 
 		/*
-		 * TODO: free http reponse only when all segments are transmitted (i.e.
-		 * there are no segments waiting in the retx list
+		 * since we just finished to send the HTTP response, we are for sure still
+		 * waiting for the ACKs, so we can't just free here the http response (in
+		 * case we need to retx).
 		 */
-
-#if 0
-		free(res->header_buf);
-		free(res->parser);
-		close(res->file_fd);
-		free(res);
-
-		cur_conn->data_len      = 0;
-		cur_conn->http_response = NULL;
-#endif
-
 	}
 }
 
@@ -1091,6 +1081,10 @@ ack_segment(void)
 
 	if (list_empty(&cur_conn->unackd_segs) && list_head_attached(&cur_conn->min_retx_ts.head)) {
 		list_del(&cur_conn->min_retx_ts.head);
+
+		if (cur_conn->http_response->sent) {
+			free_http_response();
+		}
 	}
 }
 

@@ -254,3 +254,17 @@ handle_http_request(void)
 	}
 }
 
+void
+free_http_response(void)
+{
+	http_response_t *res = cur_conn->http_response;
+
+	free(res->header_buf);
+	free(res->parser);
+	close(res->file_fd);
+	free(res);
+
+	cur_conn->data_len      = 0;
+	cur_conn->http_response = NULL;
+}
+
