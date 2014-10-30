@@ -1052,13 +1052,7 @@ cmp_unackd_seg(void *data, list_head_t *a, list_head_t *b)
 	tcp_unackd_segment_t *_a = list_entry(a, tcp_unackd_segment_t, head);
 	tcp_unackd_segment_t *_b = list_entry(b, tcp_unackd_segment_t, head);
 
-	if (_a->retx_ts < _b->retx_ts) {
-		return -1;
-	} else if (_a->retx_ts == _b->retx_ts) {
-		return 0;
-	} else {
-		return 1;
-	}
+	return _a->retx_ts - _b->retx_ts;
 }
 
 static
@@ -1068,13 +1062,7 @@ cmp_min_retx_ts(void *data, list_head_t *a, list_head_t *b)
 	tcp_per_conn_min_retx_ts_t *_a = list_entry(a, tcp_per_conn_min_retx_ts_t, head);
 	tcp_per_conn_min_retx_ts_t *_b = list_entry(b, tcp_per_conn_min_retx_ts_t, head);
 
-	if (_a->retx_ts < _b->retx_ts) {
-		return -1;
-	} else if (_a->retx_ts == _b->retx_ts) {
-		return 0;
-	} else {
-		return 1;
-	}
+	return _a->retx_ts - _b->retx_ts;
 }
 
 void
