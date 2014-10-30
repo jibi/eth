@@ -1006,11 +1006,8 @@ static
 void
 track_unackd_segment(void)
 {
-	bool empty_before;
 	uint32_t seq              = cur_conn->last_sent_byte + 1;
 	tcp_unackd_segment_t *seg = mem_pool_malloc(unacked_segments_pool);
-
-	empty_before = list_empty(&cur_conn->unackd_segs);
 
 	seg->seq     = seq;
 	seg->retx_ts = retx_ts();
@@ -1021,7 +1018,7 @@ track_unackd_segment(void)
 	 * if there were no unackd segments for this connection before, we need to add
 	 * the entry to the global min_rets_ts list
 	 */
-	if (empty_before) {
+	if (!list_head_attached(&cur_conn->min_retx_ts.head)) {
 		list_add(&cur_conn->min_retx_ts.head, &per_conn_min_retx_ts);
 	}
 
@@ -1077,7 +1074,6 @@ void
 ack_segment(void)
 {
 	uint32_t seq;
-	bool     deleted = false;
 
 	tcp_unackd_segment_t *seg;
 	tcp_unackd_segment_t *tmp;
@@ -1086,16 +1082,14 @@ ack_segment(void)
 
 	list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
 		if (cmp_seq(seg->seq, seq) < 0) {
-			deleted = true;
 			log_debug2("removing segment %d (conn %p) from unacked segments array", seg->seq, cur_conn);
 
 			list_del(&seg->head);
-
 			mem_pool_free(unacked_segments_pool, seg);
 		}
 	}
 
-	if (deleted && list_empty(&cur_conn->unackd_segs)) {
+	if (list_empty(&cur_conn->unackd_segs) && list_head_attached(&cur_conn->min_retx_ts.head)) {
 		list_del(&cur_conn->min_retx_ts.head);
 	}
 }
