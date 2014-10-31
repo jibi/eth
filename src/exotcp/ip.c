@@ -64,6 +64,11 @@ process_ip(void)
 	cur_pkt->ip_hdr  = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;
 
+	if (unlikely(cur_pkt->ip_hdr->version != 4)) {
+		log_debug1("this is not the packet you are looking for");
+		return;
+	}
+
 	if (unlikely(! is_this_card_ip((struct in_addr *) &cur_pkt->ip_hdr->dst_addr))) {
 		log_debug1("this is not the packet you are looking for");
 		return;
