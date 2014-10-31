@@ -39,10 +39,9 @@ field(eth_parser_t* hp, const char *field, size_t flen, const char *value, size_
 
 static inline
 void
-method(eth_parser_t* hp, const char *at, size_t length) {
+method(eth_parser_t* hp, const char *at, size_t length)
+{
 	asprintf(&hp->method, "%.*s", (int) length, at);
-
-
 }
 
 static inline
@@ -260,8 +259,8 @@ free_http_response(void)
 {
 	http_response_t *res = cur_conn->http_response;
 
+	delete_eth_parser(res->parser);
 	free(res->header_buf);
-	free(res->parser);
 	close(res->file_fd);
 	free(res);
 
