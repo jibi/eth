@@ -46,7 +46,6 @@ typedef struct ip_hdr_s {
 void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto);
 void setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t payload_len);
 void process_ip(void);
-void ip_checksum(ip_hdr_t *ip_hdr);
 
 #endif
 

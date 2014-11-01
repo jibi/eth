@@ -27,6 +27,8 @@
 #include <eth/exotcp/tcp.h>
 #include <eth/exotcp/icmp.h>
 
+static inline void ip_checksum(ip_hdr_t *ip_hdr);
+
 void
 init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
 {
@@ -82,6 +84,7 @@ process_ip(void)
 	}
 }
 
+static inline
 void
 ip_checksum(ip_hdr_t *ip_hdr)
 {
