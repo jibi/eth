@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2005 Zed A. Shaw
  * Copyright (C) 2014 jibi <jibi@paranoici.org>
  *
  * This program is free software; you can redistribute it and/or
