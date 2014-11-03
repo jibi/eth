@@ -652,7 +652,6 @@ process_tcp_segment_data(void)
 	cur_conn->data_len += len;
 
 	cur_conn->last_recv_byte += len;
-	send_tcp_ack();
 
 	if (flag_psh(cur_pkt->tcp_hdr)) {
 		handle_http_request();
@@ -719,6 +718,7 @@ process_tcp_segment(void)
 
 	if (tcp_payload_len(cur_pkt)) {
 		process_tcp_segment_data();
+		send_tcp_ack();
 	}
 
 	if (flag_ack(cur_pkt->tcp_hdr)) {

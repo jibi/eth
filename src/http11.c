@@ -232,10 +232,8 @@ handle_http_request(void)
 	http_response_t *response;
 
 	if (!cur_conn->http_response) {
-		response = malloc(sizeof(http_response_t));
-
-		response->parser = new_eth_parser();
-
+		response                = malloc(sizeof(http_response_t));
+		response->parser        = new_eth_parser();
 		cur_conn->http_response = response;
 	} else {
 		response = cur_conn->http_response;

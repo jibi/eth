@@ -27,7 +27,6 @@
 
 typedef struct nm_tx_ring_desc_s {
 	char *buf;
-	int  i;
 	uint16_t  *len;
 } nm_tx_desc_t;
 
