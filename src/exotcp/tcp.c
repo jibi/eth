@@ -1134,14 +1134,14 @@ tcp_retransm_segment(tcp_unackd_segment_t *seg)
 
 	if (start_byte < res->header_len) {
 		header_start = start_byte;
-		header_len   = MIN(ETH_MTU - sizeof(data_tcp_packet), res->header_len - header_start);
+		header_len   = MIN(cur_conn->client_opts.mss - sizeof(tcp_data_opts_t), res->header_len - header_start);
 	} else {
 		header_len = 0;
 	}
 
 	if (ETH_MTU - sizeof(data_tcp_packet) - header_len > 0) {
 		file_start = start_byte - res->header_len;
-		file_len   = MIN(ETH_MTU - sizeof(data_tcp_packet) - header_len, res->file_len - file_start);
+		file_len   = MIN(cur_conn->client_opts.mss - sizeof(tcp_data_opts_t) - header_len, res->file_len - file_start);
 	} else {
 		file_len   = 0;
 	}
