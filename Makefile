@@ -17,7 +17,7 @@
 #
 
 CC=gcc
-CFLAGS=-Wall -pedantic -Ofast -std=gnu11 -I ./include -I ./deps/netmap/sys
+CFLAGS=-Wall -pedantic -Ofast -std=gnu11 -I ./include -isystem ./deps/netmap/sys
 SOURCES=src/eth.c src/exotcp.c src/http11.c src/log.c src/netmap.c src/parser.c \
 src/datastruct/hash.c src/datastruct/list.c \
 src/exotcp/arp.c src/exotcp/checksum.c src/exotcp/eth.c src/exotcp/icmp.c src/exotcp/ip.c src/exotcp/tcp.c
@@ -33,6 +33,7 @@ $(PARSER):
 	ragel src/parser.rl -o $@
 all: $(SOURCES) $(EXECUTABLE)
 deps: deps/netmap
+	cd deps/netmap/LINUX; ./configure --kernel-sources=/usr/src/linux
 	cd deps/netmap/LINUX; make
 clean:
 	@rm $(EXECUTABLE) $(OBJECTS)
