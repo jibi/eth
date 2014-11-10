@@ -102,7 +102,7 @@ main(int argc, char *argv[])
 		fatal_tragedy(1, "you need to specify the listening port");
 	}
 
-	log_info("Hi, this is ETH!");
+	log_info("Hi, this is Eth version %s", ETH_VERSION);
 
 	init_netmap(dev);
 	init_exotcp(mac, ip, port);
