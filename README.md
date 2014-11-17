@@ -22,7 +22,9 @@ Some numbers: average speed to download a 1GB file with a single connection.
 
 Nginx | Eth
 --- | ---
-160 Mb/s | 360 Mb/s
+160 Mb/s | 460 Mb/s
+
+![bench](pics/bench_conn.png)
 
 and because this is a work in progress (and a big proof of concept at the
 moment) I think Eth performance can further be improved (TCP offload, better

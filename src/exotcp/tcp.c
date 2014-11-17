@@ -147,7 +147,7 @@ static inline
 uint32_t
 retx_ts(void)
 {
-	return cur_ms_ts() + ((cur_conn->rtt + 1) * 4);
+	return cur_ms_ts() + MAX(cur_conn->rtt * 4, 10);
 }
 
 //returns x - y taking account of the wraparound
