@@ -36,6 +36,13 @@ usage(void)
 	printf("  --port [port]:    the bind port\n");
 }
 
+static
+void
+signal_handler(int signo)
+{
+	exit(0);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -101,6 +108,9 @@ main(int argc, char *argv[])
 	if (!port) {
 		fatal_tragedy(1, "you need to specify the listening port");
 	}
+
+	signal(SIGINT, signal_handler);
+	signal(SIGQUIT, signal_handler);
 
 	log_info("Hi, this is Eth version %s", ETH_VERSION);
 
