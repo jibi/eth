@@ -664,57 +664,58 @@ process_tcp_segment_data(void)
 
 static inline
 void
-process_tcp_segment_ack(void)
-{
-	uint32_t new_ack = ntohl(cur_pkt->tcp_hdr->ack);
+update_tcp_eff_window() {
+	uint16_t adv_win   = ntohs(cur_pkt->tcp_hdr->window);
+	uint8_t  win_scale = cur_conn->client_opts.win_scale;
 
-	if (cur_conn->last_ackd_byte == new_ack) {
-		/*
-		 * if this is an ack to the segment just before the last one we had
-		 * retransmitted, and the 4 * rtt timeout has not elapsed, do not
-		 * retransmit. Since we send x packets in a row, chances are we receive
-		 * x ACK packets all equals.
-		 */
-		if (cur_conn->last_retx_seg_seq == new_ack && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
-			return;
-		}
+	cur_conn->recv_eff_window = (adv_win << win_scale) - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+}
 
-		/*
-		 * probably the next segment got lost:
-		 * retransmit
-		 */
-		tcp_unackd_segment_t *seg, *tmp;
-
-		list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
-			if (seg->seq != new_ack) {
-				continue;
-			}
-
-			tcp_retransm_segment(seg);
-			break;
-		}
-	} else {
-		cur_conn->last_ackd_byte  = ntohl(cur_pkt->tcp_hdr->ack);
-		cur_conn->recv_eff_window = (ntohs(cur_pkt->tcp_hdr->window) << cur_conn->client_opts.win_scale) - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
-
-		ack_segment();
-	}
-
+static inline
+bool
+tcp_seq_is_dup() {
+	return cmp_seq(ntohl(cur_pkt->tcp_hdr->seq), cur_conn->last_recv_byte) <= 0;
 }
 
 static inline
 void
-process_tcp_segment(void)
+process_tcp_segment_ack(void)
 {
-	log_debug1("recv tcp segment");
+	uint32_t new_ack;
+	tcp_unackd_segment_t *seg;
 
-	parse_tcp_options(cur_pkt->tcp_hdr);
+	new_ack = ntohl(cur_pkt->tcp_hdr->ack);
 
-	if (cmp_seq(ntohl(cur_pkt->tcp_hdr->seq), cur_conn->last_recv_byte) <= 0) {
-		/* this is a DUP, send an ACK and avoid further processing */
-		send_tcp_ack();
-		return;
+	if (cur_conn->last_ackd_byte == new_ack) {
+		if (cur_conn->last_retx_seg_seq == new_ack && cur_ms_ts() <= cur_conn->last_retx_seg_ts) {
+			/*
+			 * if this is an ack to the segment just before the last one we had
+			 * retransmitted, and the 4 * rtt timeout has not elapsed, do not
+			 * retransmit. Since we send x packets in a row, chances are we receive
+			 * x ACK packets all equals.
+			 */
+
+			return;
+		}
+
+		list_for_each_entry(seg, &cur_conn->unackd_segs, head) {
+			if (seg->seq == new_ack) {
+				tcp_retransm_segment(seg);
+				break;
+			}
+		}
+	} else {
+		cur_conn->last_ackd_byte = new_ack;
+		update_tcp_eff_window();
+
+		ack_segment();
 	}
+}
+
+static inline
+void
+process_tcp_segment_no_dup() {
+	parse_tcp_options(cur_pkt->tcp_hdr);
 
 	if (tcp_payload_len(cur_pkt)) {
 		process_tcp_segment_data();
@@ -724,6 +725,30 @@ process_tcp_segment(void)
 	if (flag_ack(cur_pkt->tcp_hdr)) {
 		process_tcp_segment_ack();
 	}
+}
+
+static inline
+void
+process_tcp_segment_dup() {
+	send_tcp_ack();
+}
+
+static inline
+void
+process_tcp_segment(void)
+{
+	log_debug1("recv tcp segment");
+
+	/*
+	 * normally last_recv_byte should be equal to cur_pkt' seq - 1
+	 * (so the cmp function must return something greater than 0)
+	 */
+	if (likely(! tcp_seq_is_dup())) {
+		process_tcp_segment_no_dup();
+	} else {
+		process_tcp_segment_dup();
+	}
+
 	 //TODO: check if something got missed and ask for retransmission
 }
 
