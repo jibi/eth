@@ -43,6 +43,7 @@ list_head_t    *nm_tcp_conn_list;
 tcp_conn_t     *nm_send_loop_cur_conn = NULL;
 
 static bool nm_has_data_to_send   = false;
+static bool nm_recv_loop_has_sent;
 
 void
 init_netmap(char *ifname)
@@ -157,14 +158,16 @@ nm_recv_loop(void)
 {
 	struct netmap_ring *recv_ring;
 
-	recv_ring = NETMAP_RXRING(netmap->nifp, 0);
+	recv_ring             = NETMAP_RXRING(netmap->nifp, 0);
+	nm_recv_loop_has_sent = false;
 
 	while (!nm_ring_empty(recv_ring)) {
 		recv_packet(recv_ring);
 	}
 
-	ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
-
+	if (nm_recv_loop_has_sent) {
+		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	}
 }
 
 static inline
@@ -291,6 +294,8 @@ nm_send_packet(void *packet, uint16_t packet_len)
 	nm_get_tx_buff(&tx_desc);
 	memcpy(tx_desc.buf, packet, packet_len);
 	*tx_desc.len = packet_len;
+
+	nm_recv_loop_has_sent = true;
 }
 
 void
@@ -302,5 +307,7 @@ nm_send_packet_with_data(void *packet, uint16_t packet_len, void *data, uint16_t
 	memcpy(tx_desc.buf, packet, packet_len);
 	memcpy(tx_desc.buf + packet_len, data, data_len);
 	*tx_desc.len = packet_len + data_len;
+
+	nm_recv_loop_has_sent = true;
 }
 
