@@ -112,7 +112,6 @@ struct {
 
 typedef struct tcp_send_data_ctx_s {
 	nm_tx_desc_t http_hdr_last_tx_desc;
-	uint16_t     slot_count;
 	uint16_t     last_http_hdr_pl_len;
 
 } tcp_send_data_ctx_t;
@@ -848,10 +847,11 @@ tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len
 	return sum;
 }
 
+#define MAX_SLOT 256 /* TODO: use NIC ring size */
+
 void
 tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx)
 {
-#define MAX_SLOT 64 /* XXX: find a good value for this */
 
 	http_response_t *res;
 	nm_tx_desc_t    tx_desc;
@@ -861,7 +861,7 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx)
 
 	res = cur_conn->http_response;
 
-	while (http_res_has_header_to_send(res) && tcp_conn_has_open_window() && ctx->slot_count < MAX_SLOT) {
+	while (http_res_has_header_to_send(res) && tcp_conn_has_open_window()) {
 		if (unlikely(nm_send_ring_empty())) {
 			break;
 		}
@@ -889,7 +889,6 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx)
 			cur_conn->last_sent_byte  += payload_len;
 			cur_conn->recv_eff_window -= payload_len;
 
-			ctx->slot_count++;
 		} else {
 			ctx->http_hdr_last_tx_desc.buf = tx_desc.buf;
 			ctx->http_hdr_last_tx_desc.len = tx_desc.len;
@@ -920,7 +919,7 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 	start_pos      = res->file_pos;
 	payload_offset = ctx->last_http_hdr_pl_len;
 
-	while (http_res_has_file_to_send(res) && tcp_conn_has_open_window() && ctx->slot_count < MAX_SLOT) {
+	while (http_res_has_file_to_send(res) && tcp_conn_has_open_window()) {
 		if (unlikely(nm_send_ring_empty())) {
 			break;
 		}
@@ -962,7 +961,6 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 		iov[iovcnt].iov_len  = payload_len;
 		res->file_pos       += payload_len;
 
-		ctx->slot_count++;
 		iovcnt++;
 	}
 
@@ -990,7 +988,6 @@ tcp_conn_send_data(void)
 	tcp_send_data_ctx_t ctx;
 	http_response_t *res;
 
-	ctx.slot_count           = 0;
 	ctx.last_http_hdr_pl_len = 0;
 
 	res = cur_conn->http_response;
