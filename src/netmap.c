@@ -42,7 +42,7 @@ struct nm_desc *netmap;
 list_head_t    *nm_tcp_conn_list;
 tcp_conn_t     *nm_send_loop_cur_conn = NULL;
 
-static bool nm_has_data_to_send   = false;
+static bool nm_did_send_last_time   = false;
 static bool nm_recv_loop_has_sent;
 
 void
@@ -132,7 +132,8 @@ nm_sync_rx_tx_ring(void)
 
 	/* the timeout logic is the following:
 	 *
-	 * * if there is data to send, just don't set a timeout
+	 * * if nm_did_send_data_last_time is true, it means probably there's more
+	 *   data to send available, so just set a timeout equal to 0
 	 *
 	 * * Otherwise, in case there are packets that are not yet acknowledged, set the timeout
 	 *   to the the earlier timeout of retransmission.
@@ -140,7 +141,7 @@ nm_sync_rx_tx_ring(void)
 	 * * Otherwise put poll in a blocking state
 	 */
 
-	if (nm_has_data_to_send) {
+	if (nm_did_send_last_time) {
 		timeout = 0;
 	} else if (! list_empty(&per_conn_min_retx_ts)) {
 		tcp_per_conn_min_retx_ts_t *min_retx_ts = list_first_entry(&per_conn_min_retx_ts, tcp_per_conn_min_retx_ts_t, head);
@@ -211,15 +212,13 @@ nm_send_loop(void)
 
 	send_ring = NETMAP_TXRING(netmap->nifp, 0);
 
-	nm_has_data_to_send = true;
-	while (!nm_ring_empty(send_ring) && nm_has_data_to_send) {
-
+	do {
 		if (unlikely(!resume_loop)) {
 			nm_send_loop_cur_conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
 		}
 
-		resume_loop         = false;
-		nm_has_data_to_send = false;
+		resume_loop           = false;
+		nm_did_send_last_time = false;
 
 		tcp_conn_t *n;
 		list_for_each_entry_safe_from(nm_send_loop_cur_conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
@@ -234,10 +233,10 @@ nm_send_loop(void)
 				set_cur_sock(cur_conn->sock);
 
 				tcp_conn_send_data();
-				nm_has_data_to_send = true;
+				nm_did_send_last_time = true;
 			}
 		}
-	}
+	} while ((!nm_ring_empty(send_ring)) && nm_did_send_last_time);
 }
 
 void
