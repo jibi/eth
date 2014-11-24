@@ -62,6 +62,14 @@ init_netmap(char *ifname)
 
 static inline
 void
+nm_sync_pending_tx() {
+	while (nm_tx_pending(NETMAP_TXRING(netmap->nifp, 0))) {
+		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	}
+}
+
+static inline
+void
 process_packet(char *buf, size_t len)
 {
 	packet_t p;
@@ -151,6 +159,8 @@ nm_sync_rx_tx_ring(void)
 	}
 
 	poll(&nm_fds, 1, timeout);
+
+	nm_sync_pending_tx();
 }
 
 static inline
