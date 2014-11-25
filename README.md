@@ -2,6 +2,11 @@
 A specialized web server with userspace TCP/IP stack.
 Also my undergraduate thesis work.
 
+## Big Caveat
+This is a *work in progress*, an experiment at the moment.
+
+No way it is even remotely production ready.
+
 ## What?
 Eth is a specialized web server whose aim is to be extremely fast on static file
 serving. It archives this using Netmap and a custom lightweight TCP/IP stack
@@ -25,10 +30,6 @@ Nginx | Eth
 160 Mb/s | 460 Mb/s
 
 ![bench](pics/bench_conn.png)
-
-and because this is a work in progress (and a big proof of concept at the
-moment) I think Eth performance can further be improved (TCP offload, better
-data structures, ..).
 
 ##Installation
 
@@ -69,3 +70,5 @@ and start Eth server with
 # ./eth --dev $ifname --mac $ifmac --ip $ifip --port $port
 ```
 
+## TODO
+Actually [a lot](todo.md)

@@ -1,0 +1,7 @@
+- [ ] SSL support
+- [ ] IPv6 support
+- [ ] multicore support
+- [ ] multiple cards support
+- [ ] FreeBSD support
+- [ ] improve TCP ACKs data structures
+- [ ] find out if it is possible to enable TCP offload to calc checksum
