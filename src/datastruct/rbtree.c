@@ -23,23 +23,23 @@
 
 static inline
 void
-rb_set_black(struct rb_node *rb)
+rb_set_black(rb_node_t *rb)
 {
 	rb->__rb_parent_color |= RB_BLACK;
 }
 
 static inline
-struct rb_node *
-rb_red_parent(struct rb_node *red)
+rb_node_t *
+rb_red_parent(rb_node_t *red)
 {
-	return (struct rb_node *)red->__rb_parent_color;
+	return (rb_node_t *)red->__rb_parent_color;
 }
 
 static inline
 void
-__rb_rotate_set_parents(struct rb_node *old, struct rb_node *new, struct rb_root *root, int color)
+__rb_rotate_set_parents(rb_node_t *old, rb_node_t *new, rb_root_t *root, int color)
 {
-	struct rb_node *parent = rb_parent(old);
+	rb_node_t *parent = rb_parent(old);
 	new->__rb_parent_color = old->__rb_parent_color;
 	rb_set_parent_color(old, new, color);
 	__rb_change_child(old, new, parent, root);
@@ -47,9 +47,11 @@ __rb_rotate_set_parents(struct rb_node *old, struct rb_node *new, struct rb_root
 
 static inline
 void
-__rb_insert(struct rb_node *node, struct rb_root *root, void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
+__rb_insert(rb_node_t *node, rb_root_t *root,
+	void (*augment_rotate)(rb_node_t *old, rb_node_t *new))
 {
-	struct rb_node *parent = rb_red_parent(node), *gparent, *tmp;
+	rb_node_t *parent = rb_red_parent(node), *gparent, *tmp;
+
 	while (true) {
 		if (!parent) {
 			rb_set_parent_color(node, NULL, RB_BLACK);
@@ -121,9 +123,10 @@ __rb_insert(struct rb_node *node, struct rb_root *root, void (*augment_rotate)(s
 
 static inline
 void
-____rb_erase_color(struct rb_node *parent, struct rb_root *root, void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
+____rb_erase_color(rb_node_t *parent, rb_root_t *root,
+	void (*augment_rotate)(rb_node_t *old, rb_node_t *new))
 {
-	struct rb_node *node = NULL, *sibling, *tmp1, *tmp2;
+	rb_node_t *node = NULL, *sibling, *tmp1, *tmp2;
 	while (true) {
 		sibling = parent->rb_right;
 		if (node != sibling) {
@@ -222,44 +225,45 @@ ____rb_erase_color(struct rb_node *parent, struct rb_root *root, void (*augment_
 }
 
 void
-__rb_erase_color(struct rb_node *parent, struct rb_root *root, void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
+__rb_erase_color(rb_node_t *parent, rb_root_t *root,
+	void (*augment_rotate)(rb_node_t *old, rb_node_t *new))
 {
 	____rb_erase_color(parent, root, augment_rotate);
 }
 
-static inline void dummy_propagate(struct rb_node *node, struct rb_node *stop) {}
-static inline void dummy_copy(struct rb_node *old, struct rb_node *new) {}
-static inline void dummy_rotate(struct rb_node *old, struct rb_node *new) {}
+static inline void dummy_propagate(rb_node_t *node, rb_node_t *stop) {}
+static inline void dummy_copy(rb_node_t *old, rb_node_t *new) {}
+static inline void dummy_rotate(rb_node_t *old, rb_node_t *new) {}
 static const struct rb_augment_callbacks dummy_callbacks = {
 	dummy_propagate, dummy_copy, dummy_rotate
 };
 
 void
-rb_insert_color(struct rb_node *node, struct rb_root *root)
+rb_insert_color(rb_node_t *node, rb_root_t *root)
 {
 	__rb_insert(node, root, dummy_rotate);
 }
 
 void
-rb_erase(struct rb_node *node, struct rb_root *root)
+rb_erase(rb_node_t *node, rb_root_t *root)
 {
-	struct rb_node *rebalance;
+	rb_node_t *rebalance;
 	rebalance = __rb_erase_augmented(node, root, &dummy_callbacks);
 	if (rebalance)
 		____rb_erase_color(rebalance, root, dummy_rotate);
 }
 
 void
-__rb_insert_augmented(struct rb_node *node, struct rb_root *root,
-		void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
+__rb_insert_augmented(rb_node_t *node, rb_root_t *root,
+		void (*augment_rotate)(rb_node_t *old, rb_node_t *new))
 {
 	__rb_insert(node, root, augment_rotate);
 }
 
-struct rb_node *
-rb_first(const struct rb_root *root)
+rb_node_t *
+rb_first(const rb_root_t *root)
 {
-	struct rb_node *n;
+	rb_node_t *n;
 	n = root->rb_node;
 	if (!n)
 		return NULL;
@@ -268,10 +272,10 @@ rb_first(const struct rb_root *root)
 	return n;
 }
 
-struct rb_node *
-rb_last(const struct rb_root *root)
+rb_node_t *
+rb_last(const rb_root_t *root)
 {
-	struct rb_node *n;
+	rb_node_t *n;
 	n = root->rb_node;
 	if (!n)
 		return NULL;
@@ -280,34 +284,34 @@ rb_last(const struct rb_root *root)
 	return n;
 }
 
-struct rb_node *
-rb_next(const struct rb_node *node)
+rb_node_t *
+rb_next(const rb_node_t *node)
 {
-	struct rb_node *parent;
+	rb_node_t *parent;
 	if (RB_EMPTY_NODE(node))
 		return NULL;
 	if (node->rb_right) {
 		node = node->rb_right;
 		while (node->rb_left)
 			node=node->rb_left;
-		return (struct rb_node *)node;
+		return (rb_node_t *)node;
 	}
 	while ((parent = rb_parent(node)) && node == parent->rb_right)
 		node = parent;
 	return parent;
 }
 
-struct rb_node *
-rb_prev(const struct rb_node *node)
+rb_node_t *
+rb_prev(const rb_node_t *node)
 {
-	struct rb_node *parent;
+	rb_node_t *parent;
 	if (RB_EMPTY_NODE(node))
 		return NULL;
 	if (node->rb_left) {
 		node = node->rb_left;
 		while (node->rb_right)
 			node=node->rb_right;
-		return (struct rb_node *)node;
+		return (rb_node_t *)node;
 	}
 	while ((parent = rb_parent(node)) && node == parent->rb_left)
 		node = parent;
@@ -315,9 +319,9 @@ rb_prev(const struct rb_node *node)
 }
 
 void
-rb_replace_node(struct rb_node *victim, struct rb_node *new, struct rb_root *root)
+rb_replace_node(rb_node_t *victim, rb_node_t *new, rb_root_t *root)
 {
-	struct rb_node *parent = rb_parent(victim);
+	rb_node_t *parent = rb_parent(victim);
 	__rb_change_child(victim, new, parent, root);
 	if (victim->rb_left)
 		rb_set_parent(victim->rb_left, new);
@@ -327,8 +331,8 @@ rb_replace_node(struct rb_node *victim, struct rb_node *new, struct rb_root *roo
 }
 
 static
-struct rb_node *
-rb_left_deepest_node(const struct rb_node *node)
+rb_node_t *
+rb_left_deepest_node(const rb_node_t *node)
 {
 	for (;;) {
 		if (node->rb_left)
@@ -336,25 +340,25 @@ rb_left_deepest_node(const struct rb_node *node)
 		else if (node->rb_right)
 			node = node->rb_right;
 		else
-			return (struct rb_node *)node;
+			return (rb_node_t *)node;
 	}
 }
 
-struct rb_node *
-rb_next_postorder(const struct rb_node *node)
+rb_node_t *
+rb_next_postorder(const rb_node_t *node)
 {
-	const struct rb_node *parent;
+	const rb_node_t *parent;
 	if (!node)
 		return NULL;
 	parent = rb_parent(node);
 	if (parent && node == parent->rb_left && parent->rb_right) {
 		return rb_left_deepest_node(parent->rb_right);
 	} else
-		return (struct rb_node *)parent;
+		return (rb_node_t *)parent;
 }
 
-struct rb_node *
-rb_first_postorder(const struct rb_root *root)
+rb_node_t *
+rb_first_postorder(const rb_root_t *root)
 {
 	if (!root->rb_node)
 		return NULL;
