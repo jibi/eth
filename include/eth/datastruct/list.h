@@ -24,6 +24,10 @@
 #include <eth.h>
 #include <stddef.h>
 
+#define container_of(ptr, type, member) __extension__ ({	\
+	const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+	(type *)( (char *)__mptr - offsetof(type,member) );})
+
 typedef struct list_head_s {
 	struct list_head_s *prev;
 	struct list_head_s *next;
@@ -89,7 +93,7 @@ list_empty(const list_head_t *head)
 }
 
 #define list_entry(ptr, type, member) \
-	__extension__({ const typeof( ((type *)0)->member ) *__mptr = (ptr); (type *)( (char *)__mptr - offsetof(type,member) );})
+	container_of(ptr, type, member)
 #define list_first_entry(ptr, type, member) \
 	list_entry((ptr)->next, type, member)
 #define list_next_entry(pos, member) \
