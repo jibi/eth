@@ -28,8 +28,8 @@ uint16_t checksum(const uint8_t *buf, uint32_t size);
  * would need to build a copy of the packet to pass a continous buffer preceeded
  * with the tcp pseudo header */
 
-uint32_t partial_checksum(uint32_t sum, const uint8_t *buf, uint32_t size);
-uint16_t finalize_checksum(uint32_t sum, const uint8_t *buf, uint32_t size);
+uint64_t partial_checksum(uint64_t sum, const uint8_t *buf, uint32_t size);
+uint16_t finalize_checksum(uint64_t sum, const uint8_t *buf, uint32_t size);
 
 #endif
 

@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <eth.h>
 #include <eth/exotcp/checksum.h>
 
 uint16_t
@@ -27,36 +28,87 @@ checksum(const uint8_t *buf, uint32_t size)
 	return finalize_checksum(0, buf, size);
 }
 
-uint32_t
-partial_checksum(uint32_t sum, const uint8_t *buf, uint32_t size)
+/*
+ * based on this: http://locklessinc.com/articles/tcp_checksum/
+ */
+uint64_t
+partial_checksum(uint64_t sum, const uint8_t *buf, uint32_t size)
 {
-	int i;
+	const uint64_t *b = (uint64_t *) buf;
 
-	if (size) {
-		for (i = 0; i < size - 1; i += 2) {
-			uint16_t word16 = *(unsigned short *) &buf[i];
-			sum += word16;
+	uint64_t s64;
+	uint32_t s32;
+	uint16_t s16;
+	uint8_t  s8;
+
+	while (size >= sizeof(uint64_t)) {
+		s64 = *b++;
+
+		sum += s64;
+		if (sum < s64) {
+			sum++;
 		}
 
-		if (size & 1) {
-			uint16_t word16 = (uint8_t) buf[i];
-			sum += word16;
+		size -= 8;
+	}
+
+	buf = (const uint8_t *) b;
+	if (size & 4) {
+		s32 = *(unsigned *)buf;
+
+		sum += s32;
+		if (sum < s32) {
+			sum++;
+		}
+
+		buf += 4;
+	}
+
+	if (size & 2) {
+		s16 = *(uint16_t *) buf;
+
+		sum += s16;
+		if (sum < s16) {
+			sum++;
+		}
+
+		buf += 2;
+	}
+
+	if (size & 1) {
+		s8 = *(uint8_t *) buf;
+
+		sum += s8;
+		if (sum < s8) {
+			sum++;
 		}
 	}
 
 	return sum;
-
 }
 
 uint16_t
-finalize_checksum(uint32_t sum, const uint8_t *buf, uint32_t size)
+finalize_checksum(uint64_t sum, const uint8_t *buf, uint32_t size)
 {
+	uint32_t t1, t2;
+	uint16_t t3, t4;
+
 	sum = partial_checksum(sum, buf, size);
 
-	while (sum >> 16) {
-		sum = (sum & 0xFFFF) + (sum >> 16);
+	t1 = sum;
+	t2 = sum >> 32;
+	t1 += t2;
+	if (t1 < t2) {
+		t1++;
 	}
 
-	return ~sum;
+	t3 = t1;
+	t4 = t1 >> 16;
+	t3 += t4;
+	if (t3 < t4) {
+		t3++;
+	}
+
+	return ~t3;
 }
 

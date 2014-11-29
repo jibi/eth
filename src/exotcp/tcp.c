@@ -828,7 +828,7 @@ static
 uint16_t
 tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len, void *data, uint32_t data_len)
 {
-	uint32_t sum = 0;
+	uint64_t sum = 0;
 	tcp_pseudo_header_t pseudo_hdr;
 
 	pseudo_hdr.src_addr = ip_hdr->src_addr;
