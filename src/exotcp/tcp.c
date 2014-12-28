@@ -599,6 +599,7 @@ process_tcp_new_conn(void)
 	 * a packet with the SYN flag require us to increment the sequence
 	 * number by 1
 	 */
+	conn->last_ackd_byte = ntohl(cur_pkt->tcp_hdr->ack);
 	conn->last_sent_byte++;
 	conn->state = SYN_SENT;
 }
