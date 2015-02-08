@@ -89,4 +89,29 @@ mem_pool_free(mem_pool_t *mem_pool, void *data)
 	mem_pool_item->data = data;
 }
 
+#define define_mem_pool(name, type, count)		  \
+							  \
+mem_pool_t *type##_pool;				  \
+							  \
+static inline						  \
+void							  \
+init_##name##_pool()					  \
+{							  \
+	type##_pool = mem_pool_new(sizeof(type), count);  \
+}							  \
+							  \
+static inline						  \
+type *							  \
+alloc_##name()						  \
+{							  \
+	return mem_pool_malloc(type##_pool);		  \
+}							  \
+							  \
+static inline						  \
+void							  \
+free_##name(type *what)				  \
+{							  \
+	mem_pool_free(type##_pool, what);		  \
+}
+
 #endif

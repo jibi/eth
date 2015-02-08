@@ -36,6 +36,7 @@
 #include <eth/exotcp/tcp.h>
 
 #include <eth/datastruct/list.h>
+#include <eth/datastruct/rbtree.h>
 #include <eth/datastruct/hash.h>
 
 #include <eth/mem_pool.h>
@@ -57,12 +58,10 @@ hash_table_t *tcb_hash;
 tcp_conn_t   *cur_conn;
 
 /*
- * list of tcp_per_conn_min_retx_ts_t:
  * each entry contains a tcp connection minimum retx timestamp
  */
-list_head_t  per_conn_min_retx_ts;
+rb_root_t  conns_min_retx_ts;
 
-mem_pool_t *unacked_segments_pool;
 
 /*
  * prebuilt packet: sent in the phase 2 of the TCP three way handshake
@@ -122,6 +121,7 @@ static inline void tcp_data_checksum(char *data, uint16_t data_len);
 static inline void tcp_fin_ack_checksum(void);
 static inline void tcp_rst_checksum(void);
 
+void insert_cur_conn_min_retx_ts();
 static void track_unackd_segment(void);
 static void ack_segment(void);
 
@@ -273,9 +273,11 @@ init_tcp(void)
 
 	tcb_hash = hash_table_init(tcp_key_hash_func, cmp_tcp_conn);
 
-	list_init(&per_conn_min_retx_ts);
+	conns_min_retx_ts = RB_ROOT;
 
-	unacked_segments_pool = mem_pool_new(sizeof(tcp_unackd_segment_t), 4096);
+	init_unackd_seg_pool();
+	init_unackd_segs_list_pool();
+	init_min_retx_ts_list_pool();
 }
 
 static inline
@@ -538,7 +540,9 @@ new_tcp_conn()
 	hash_table_insert(tcb_hash, conn->key, conn);
 	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
 
-	list_init(&conn->unackd_segs);
+	list_init(&conn->unackd_segs_by_seq);
+	conn->unackd_segs_by_ts = RB_ROOT;
+
 	conn->min_retx_ts.conn = conn;
 
 	conn->min_retx_ts.head.next = NULL;
@@ -682,7 +686,7 @@ void
 process_tcp_segment_ack(void)
 {
 	uint32_t new_ack;
-	tcp_unackd_segment_t *seg;
+	tcp_unackd_seg_t *seg;
 
 	new_ack = ntohl(cur_pkt->tcp_hdr->ack);
 
@@ -698,11 +702,16 @@ process_tcp_segment_ack(void)
 			return;
 		}
 
-		list_for_each_entry(seg, &cur_conn->unackd_segs, head) {
-			if (seg->seq == new_ack) {
-				tcp_retransm_segment(seg);
+		list_for_each_entry(seg, &cur_conn->unackd_segs_by_seq, seq_list_head) {
+			if (cmp_seq(seg->seq, new_ack) > 0) {
 				break;
 			}
+
+			/*
+			 * retransmit all segments whose seq number is less than
+			 * new_ack seq
+			 */
+			tcp_retransm_segment(seg);
 		}
 	} else {
 		cur_conn->last_ackd_byte = new_ack;
@@ -983,6 +992,18 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 	}
 }
 
+uint32_t
+cur_conn_min_retx_ts()
+{
+	rb_node_t *seg_node;
+	tcp_unackd_segs_list_t *seg;
+
+	seg_node = rb_first(&cur_conn->unackd_segs_by_ts);
+	seg      = rb_entry(seg_node, tcp_unackd_segs_list_t, node);
+
+	return seg->retx_ts;
+}
+
 void
 tcp_conn_send_data(void)
 {
@@ -995,6 +1016,16 @@ tcp_conn_send_data(void)
 
 	tcp_conn_send_data_http_hdr(&ctx);
 	tcp_conn_send_data_http_file(&ctx);
+
+	cur_conn->min_retx_ts.retx_ts = cur_conn_min_retx_ts();
+
+	/*
+	 * if there were no unackd segments for this connection before, we need to add
+	 * the entry to the global min_rets_ts list
+	 */
+	if (!list_head_attached(&cur_conn->min_retx_ts.head)) {
+		insert_cur_conn_min_retx_ts();
+	}
 
 	if (! http_res_has_file_to_send(res)) {
 		res->sent = true;
@@ -1047,59 +1078,192 @@ tcp_rst_checksum(void)
 		tcp_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp, NULL, 0, NULL, 0);
 }
 
+tcp_unackd_segs_list_t *
+search_segs_by_ts_list(rb_root_t *root, uint32_t retx_ts)
+{
+	rb_node_t *node = root->rb_node;
+
+	while (node) {
+		tcp_unackd_segs_list_t *segs;
+		int cmp;
+
+		segs = container_of(node, tcp_unackd_segs_list_t, node);
+		cmp  = retx_ts - segs->retx_ts;
+
+		if (cmp < 0) {
+			node = node->rb_left;
+		} else if (cmp > 0) {
+			node = node->rb_right;
+		} else {
+			return segs;
+		}
+	}
+
+	return NULL;
+}
+
+void
+insert_segs_by_ts_list(rb_root_t *root, tcp_unackd_segs_list_t *segs)
+{
+	rb_node_t **new;
+	rb_node_t *parent;
+
+	new    = &(root->rb_node);
+	parent = NULL;
+
+	while (*new) {
+		tcp_unackd_segs_list_t *this;
+		int cmp;
+
+		parent = *new;
+		this   = container_of(*new, tcp_unackd_segs_list_t, node);
+		cmp    = segs->retx_ts - this->retx_ts;
+
+		if (cmp < 0) {
+			new = &((*new)->rb_left);
+		} else if (cmp > 0) {
+			new = &((*new)->rb_right);
+		} else {
+			return;
+		}
+	}
+
+	rb_link_node(&segs->node, parent, new);
+	rb_insert_color(&segs->node, root);
+}
+
+tcp_min_retx_ts_list_t *
+search_min_retx_ts_list(rb_root_t *root, uint32_t retx_ts)
+{
+	rb_node_t *node = root->rb_node;
+
+	while (node) {
+		tcp_min_retx_ts_list_t *segs;
+		int cmp;
+
+		segs = container_of(node, tcp_min_retx_ts_list_t, node);
+		cmp  = retx_ts - segs->retx_ts;
+
+		if (cmp < 0) {
+			node = node->rb_left;
+		} else if (cmp > 0) {
+			node = node->rb_right;
+		} else {
+			return segs;
+		}
+	}
+
+	return NULL;
+}
+
+void
+insert_min_retx_ts_list(rb_root_t *root, tcp_min_retx_ts_list_t *retx_ts_list)
+{
+	rb_node_t **new;
+	rb_node_t *parent;
+
+	new    = &(root->rb_node);
+	parent = NULL;
+
+	while (*new) {
+		tcp_min_retx_ts_list_t *this;
+		int cmp;
+
+		parent = *new;
+		this   = container_of(*new, tcp_min_retx_ts_list_t, node);
+		cmp    = retx_ts_list->retx_ts - this->retx_ts;
+
+		if (cmp < 0) {
+			new = &((*new)->rb_left);
+		} else if (cmp > 0) {
+			new = &((*new)->rb_right);
+		} else {
+			return;
+		}
+	}
+
+	rb_link_node(&retx_ts_list->node, parent, new);
+	rb_insert_color(&retx_ts_list->node, root);
+}
+
+void
+insert_cur_conn_min_retx_ts()
+{
+	tcp_min_retx_ts_t      *min_retx_ts;
+	tcp_min_retx_ts_list_t *retx_ts_list;
+
+	min_retx_ts  = &cur_conn->min_retx_ts;
+	retx_ts_list = search_min_retx_ts_list(&conns_min_retx_ts, min_retx_ts->retx_ts);
+
+	if (!retx_ts_list) {
+		retx_ts_list = alloc_min_retx_ts_list();
+
+		retx_ts_list->retx_ts = min_retx_ts->retx_ts;
+		list_init(&retx_ts_list->seg_list_head);
+	}
+
+	list_add(&min_retx_ts->head, &retx_ts_list->seg_list_head);
+	insert_min_retx_ts_list(&conns_min_retx_ts, retx_ts_list);
+}
+
+static inline
+void
+add_seg_to_seq_list(tcp_unackd_seg_t *seg)
+{
+	list_add_tail(&seg->seq_list_head, &cur_conn->unackd_segs_by_seq);
+}
+
+static inline
+void
+add_seg_to_ts_list(tcp_unackd_seg_t *seg)
+{
+	tcp_unackd_segs_list_t *segs;
+
+	segs = search_segs_by_ts_list(&cur_conn->unackd_segs_by_ts, seg->retx_ts);
+
+	if (!segs) {
+		segs          = alloc_unackd_segs_list();
+		segs->retx_ts = seg->retx_ts;
+
+		list_init(&segs->seg_list_head);
+		insert_segs_by_ts_list(&cur_conn->unackd_segs_by_ts, segs);
+	}
+
+	list_add_tail(&seg->ts_list_head, &segs->seg_list_head);
+}
+
+static inline
+void
+del_seg_from_ts_list(tcp_unackd_seg_t *seg)
+{
+	tcp_unackd_segs_list_t *segs_list;
+
+	segs_list = search_segs_by_ts_list(&cur_conn->unackd_segs_by_ts, seg->retx_ts);
+
+	list_del(&seg->ts_list_head);
+
+	if (list_empty(&segs_list->seg_list_head)) {
+		rb_erase(&segs_list->node, &cur_conn->unackd_segs_by_ts);
+		free_unackd_segs_list(segs_list);
+	}
+}
+
 static inline
 void
 track_unackd_segment(void)
 {
-	uint32_t seq              = cur_conn->last_sent_byte + 1;
-	tcp_unackd_segment_t *seg = mem_pool_malloc(unacked_segments_pool);
+	uint32_t                seq;
+	tcp_unackd_seg_t       *seg;
 
+	seq          = cur_conn->last_sent_byte + 1;
+	seg          = alloc_unackd_seg();
 	seg->seq     = seq;
 	seg->retx_ts = retx_ts();
 
-	list_add_tail(&seg->head, &cur_conn->unackd_segs);
-
-	/*
-	 * if there were no unackd segments for this connection before, we need to add
-	 * the entry to the global min_rets_ts list
-	 */
-	if (!list_head_attached(&cur_conn->min_retx_ts.head)) {
-		list_add(&cur_conn->min_retx_ts.head, &per_conn_min_retx_ts);
-	}
+	add_seg_to_seq_list(seg);
+	add_seg_to_ts_list(seg);
 
 	log_debug2("tracking unackd segment %d (conn %p)", seq, cur_conn);
-}
-
-static
-int
-cmp_unackd_seg(void *data, list_head_t *a, list_head_t *b)
-{
-	tcp_unackd_segment_t *_a = list_entry(a, tcp_unackd_segment_t, head);
-	tcp_unackd_segment_t *_b = list_entry(b, tcp_unackd_segment_t, head);
-
-	return _a->retx_ts - _b->retx_ts;
-}
-
-static
-int
-cmp_min_retx_ts(void *data, list_head_t *a, list_head_t *b)
-{
-	tcp_per_conn_min_retx_ts_t *_a = list_entry(a, tcp_per_conn_min_retx_ts_t, head);
-	tcp_per_conn_min_retx_ts_t *_b = list_entry(b, tcp_per_conn_min_retx_ts_t, head);
-
-	return _a->retx_ts - _b->retx_ts;
-}
-
-void
-sort_unackd_segments(void)
-{
-	list_sort(NULL, &cur_conn->unackd_segs, cmp_unackd_seg);
-}
-
-void
-sort_min_retx_ts(void)
-{
-	list_sort(NULL, &per_conn_min_retx_ts, cmp_min_retx_ts);
 }
 
 static inline
@@ -1108,21 +1272,26 @@ ack_segment(void)
 {
 	uint32_t seq;
 
-	tcp_unackd_segment_t *seg;
-	tcp_unackd_segment_t *tmp;
+	tcp_unackd_seg_t *seg;
+	tcp_unackd_seg_t *tmp;
 
 	seq = cur_conn->last_ackd_byte;
 
-	list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs, head) {
+	list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs_by_seq, seq_list_head) {
 		if (cmp_seq(seg->seq, seq) < 0) {
 			log_debug2("removing segment %d (conn %p) from unacked segments array", seg->seq, cur_conn);
 
-			list_del(&seg->head);
-			mem_pool_free(unacked_segments_pool, seg);
+			/*
+			 * we dont free here the segment descriptor (it will be done later in the
+			 * retx loop
+			 */
+			seg->ackd = true;
+
+			list_del(&seg->seq_list_head);
 		}
 	}
 
-	if (list_empty(&cur_conn->unackd_segs) && list_head_attached(&cur_conn->min_retx_ts.head)) {
+	if (list_empty(&cur_conn->unackd_segs_by_seq) && list_head_attached(&cur_conn->min_retx_ts.head)) {
 		list_del(&cur_conn->min_retx_ts.head);
 
 		if (cur_conn->http_response->sent) {
@@ -1132,7 +1301,7 @@ ack_segment(void)
 }
 
 void
-tcp_retransm_segment(tcp_unackd_segment_t *seg)
+tcp_retransm_segment(tcp_unackd_seg_t *seg)
 {
 	http_response_t *res;
 
@@ -1182,7 +1351,11 @@ tcp_retransm_segment(tcp_unackd_segment_t *seg)
 
 	send_tcp_data_retx(tx_desc.buf, payload_buf, payload_len, seq);
 
+	del_seg_from_ts_list(seg);
+
 	seg->retx_ts = retx_ts();
+
+	add_seg_to_ts_list(seg);
 
 	cur_conn->last_retx_seg_seq = seg->seq;
 	cur_conn->last_retx_seg_ts  = seg->retx_ts;

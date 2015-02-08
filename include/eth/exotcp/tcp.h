@@ -31,7 +31,10 @@ typedef struct http_response_s http_response_t;
 
 #include <eth/exotcp/eth.h>
 
+#include <eth/mem_pool.h>
+
 #include <eth/datastruct/list.h>
+#include <eth/datastruct/rbtree.h>
 #include <eth/datastruct/hash.h>
 
 #define NETMAP_WITH_LIBS
@@ -165,19 +168,56 @@ typedef struct tcp_conn_key_s {
 	uint16_t src_port;
 } __attribute__((packed)) tcp_conn_key_t;
 
-typedef struct tcp_unackd_segment_s {
+
+/*
+ * For each connection unacked segments are organised in two data structures.
+ *
+ * First. Each connection mantains a sequential (by sequence number) list of
+ * unacked segments.
+ *
+ * Second. Each connection mantains an rbtree whose key is a timestamp and whose
+ * value is a list of all the segments that share the same retransmission
+ * timestamp.
+ *
+ * Since the struct is shared between these two data structures, there a bool
+ * value which tell if the segment has been ack'd or not.
+ *
+ * When a segment is acked, the bool ackd field is set to true, and in the
+ * retransmission_loop, when the timer expires, the segment is just discarded
+ * from the rbtree list (and free'd).
+ * Otherwise the segment is retransmitted, and its timestamp of retransmission
+ * is updated.
+ */
+
+typedef struct tcp_unackd_segs_list_s {
+	uint32_t    retx_ts;       /* key */
+	list_head_t seg_list_head; /* value: actual list of segments who share the same retx timestamp */
+
+	rb_node_t   node;          /* rbtree internal stuff */
+} tcp_unackd_segs_list_t;
+
+typedef struct tcp_unackd_seg_s {
 	uint32_t    seq;
 	uint32_t    retx_ts;
+	bool        ackd;
 
-	list_head_t head;
-} tcp_unackd_segment_t;
+	list_head_t seq_list_head;
+	list_head_t ts_list_head;
+} tcp_unackd_seg_t;
 
-typedef struct tcp_per_conn_min_retx_ts_s {
+typedef struct tcp_min_retx_ts_list_s {
+	uint32_t    retx_ts;
+	list_head_t seg_list_head;
+
+	rb_node_t   node;
+} tcp_min_retx_ts_list_t;
+
+typedef struct tcp_min_retx_ts_s {
 	uint32_t   retx_ts;
 	tcp_conn_t *conn;
 
 	list_head_t head;
-} tcp_per_conn_min_retx_ts_t;
+} tcp_min_retx_ts_t;
 
 typedef struct tcp_conn_s {
 	tcp_conn_key_t *key;
@@ -192,8 +232,10 @@ typedef struct tcp_conn_s {
 
 	uint32_t recv_eff_window;
 
-	list_head_t                unackd_segs;
-	tcp_per_conn_min_retx_ts_t min_retx_ts;
+	list_head_t       unackd_segs_by_seq;
+	rb_root_t         unackd_segs_by_ts;
+
+	tcp_min_retx_ts_t min_retx_ts;
 
 	uint32_t last_retx_seg_seq;
 	uint32_t last_retx_seg_ts;
@@ -227,7 +269,7 @@ typedef struct tcp_conn_s {
 
 extern hash_table_t *tcb_hash;
 extern tcp_conn_t   *cur_conn;
-extern list_head_t  per_conn_min_retx_ts;
+extern rb_root_t     conns_min_retx_ts;
 
 static inline
 bool
@@ -283,9 +325,13 @@ void tcp_conn_send_data(void);
 void sort_unackd_segments(void);
 void sort_min_retx_ts(void);
 
-void tcp_retransm_segment(tcp_unackd_segment_t *seg);
+void tcp_retransm_segment(tcp_unackd_seg_t *seg);
 
 #define set_cur_conn(x) cur_conn = x
+
+define_mem_pool(unackd_seg, tcp_unackd_seg_t, 4000000)
+define_mem_pool(unackd_segs_list, tcp_unackd_segs_list_t, 4000000)
+define_mem_pool(min_retx_ts_list, tcp_min_retx_ts_list_t, 4000000)
 
 #endif
 

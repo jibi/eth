@@ -86,6 +86,11 @@ rb_link_node(rb_node_t * node, rb_node_t * parent,
 			typeof(*pos), field); 1; }); \
 	     pos = n)
 
+#define rbtree_for_each_node_safe(node, n, root) \
+	for (node = rb_first(root), node && (n = rb_next(node)); \
+			 node; \
+			 node = n, node && (n = rb_next(node)))
+
 struct rb_augment_callbacks {
 	void (*propagate)(rb_node_t *node, rb_node_t *stop);
 	void (*copy)(rb_node_t *old, rb_node_t *new);

@@ -37,6 +37,7 @@
 #include <net/netmap_user.h>
 
 #include <eth/datastruct/list.h>
+#include <eth/datastruct/rbtree.h>
 
 struct nm_desc *netmap;
 list_head_t    *nm_tcp_conn_list;
@@ -105,31 +106,6 @@ recv_packet(struct netmap_ring *recv_ring)
 
 static inline
 void
-sort_all_unackd_segments(void)
-{
-	tcp_conn_t *conn, *n;
-	tcp_unackd_segment_t *seg;
-	/*
-	 * sort all tcp connections unacked segments list
-	 */
-
-	list_for_each_entry_safe(conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
-
-		if (!list_empty(&cur_conn->unackd_segs)) {
-			set_cur_conn(conn);
-
-			sort_unackd_segments();
-
-			seg = list_first_entry(&cur_conn->unackd_segs, tcp_unackd_segment_t, head);
-			cur_conn->min_retx_ts.retx_ts = seg->retx_ts;
-		}
-	}
-
-	sort_min_retx_ts();
-}
-
-static inline
-void
 nm_sync_rx_tx_ring(void)
 {
 	int timeout;
@@ -151,8 +127,10 @@ nm_sync_rx_tx_ring(void)
 
 	if (nm_did_send_last_time) {
 		timeout = 0;
-	} else if (! list_empty(&per_conn_min_retx_ts)) {
-		tcp_per_conn_min_retx_ts_t *min_retx_ts = list_first_entry(&per_conn_min_retx_ts, tcp_per_conn_min_retx_ts_t, head);
+	} else if (! RB_EMPTY_ROOT(&conns_min_retx_ts)) {
+		tcp_min_retx_ts_list_t *min_retx_ts =
+			rb_entry(rb_first(&conns_min_retx_ts), tcp_min_retx_ts_list_t, node);
+
 		timeout = min_retx_ts->retx_ts - cur_ms_ts();
 	} else {
 		timeout = -1;
@@ -185,26 +163,71 @@ static inline
 void
 nm_retx_loop(void)
 {
-	tcp_per_conn_min_retx_ts_t *min_retx_ts, *tmp;
+	rb_node_t *min_retx_ts_list_node, *tmp;
 	bool did_retx = false;
 
-	list_for_each_entry_safe(min_retx_ts, tmp, &per_conn_min_retx_ts, head) {
-		tcp_unackd_segment_t *seg, *tmp2;
+	/*
+	 * global rbtree with min_retx_ts lists
+	 */
+	rbtree_for_each_node_safe(min_retx_ts_list_node, tmp, &conns_min_retx_ts) {
+		tcp_min_retx_ts_list_t *min_retx_ts_list;
+		tcp_min_retx_ts_t      *min_retx_ts, *tmp;
+		
+		min_retx_ts_list = rb_entry(min_retx_ts_list_node, tcp_min_retx_ts_list_t, node);
 
-		if (min_retx_ts->retx_ts >= cur_ms_ts()) {
+		if (min_retx_ts_list->retx_ts >= cur_ms_ts()) {
 			break;
 		}
 
-		set_cur_conn(min_retx_ts->conn);
-		set_cur_sock(cur_conn->sock)
+		/*
+		 * min_retx_ts list, each entry is a connection
+		 */
+		list_for_each_entry_safe(min_retx_ts, tmp, &min_retx_ts_list->seg_list_head, head) {
+			rb_node_t *seg_node, *tmp;
 
-		list_for_each_entry_safe(seg, tmp2, &cur_conn->unackd_segs, head) {
-			if (seg->retx_ts >= cur_ms_ts()) {
-				break;
+			set_cur_conn(min_retx_ts->conn);
+			set_cur_sock(cur_conn->sock)
+
+			/*
+			 * connection's rbtree with segments lists
+			 */
+			rbtree_for_each_node_safe(seg_node, tmp, &cur_conn->unackd_segs_by_ts) {
+				tcp_unackd_segs_list_t *segs_list;
+				tcp_unackd_seg_t       *seg, *tmp;
+
+				segs_list = rb_entry(seg_node, tcp_unackd_segs_list_t, node);
+
+				list_for_each_entry_safe(seg, tmp, &segs_list->seg_list_head, ts_list_head) {
+					if (seg->retx_ts >= cur_ms_ts()) {
+						break;
+					}
+
+					if (seg->ackd) {
+						list_del(&seg->ts_list_head);
+						free_unackd_seg(seg);
+					} else {
+						did_retx = true;
+						tcp_retransm_segment(seg);
+					}
+				}
+
+				if (list_empty(&segs_list->seg_list_head)) {
+					rb_erase(seg_node, &cur_conn->unackd_segs_by_ts);
+					free_unackd_segs_list(segs_list);
+				}
 			}
 
-			did_retx = true;
-			tcp_retransm_segment(seg);
+			if (RB_EMPTY_ROOT(&cur_conn->unackd_segs_by_ts)) {
+				/*
+				 * remove entry from global retx list
+				 */
+				list_del(&min_retx_ts_list->seg_list_head);
+			}
+		}
+
+		if (list_empty(&min_retx_ts_list->seg_list_head)) {
+			rb_erase(min_retx_ts_list_node, &conns_min_retx_ts);
+			free_min_retx_ts_list(min_retx_ts_list);
 		}
 	}
 
@@ -256,11 +279,9 @@ nm_loop(void)
 		nm_sync_rx_tx_ring();
 
 		nm_recv_loop();
-		sort_all_unackd_segments();
 
 		nm_retx_loop();
 		nm_send_loop();
-		sort_all_unackd_segments();
 	}
 }
 
