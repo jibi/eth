@@ -231,6 +231,22 @@ typedef struct tcp_conn_s {
 	list_head_t   unackd_segs_by_seq;
 	judy_array_t *unackd_segs_by_ts;
 
+	/*
+	 * To speed things up we assume that every time a TCP connection sends
+	 * some packets (i.e. the function tcp_conn_send_data is called) the
+	 * retransmission timestamp remains the same during the transmission.
+	 *
+	 * And having a precision of milliseconds this is very likely to
+	 * happen.
+	 *
+	 * So we calculate and store the retransmission timestamp only once, and
+	 * we keep a pointer to the timestamp segments list (one of the entry of
+	 * the unackd_segs_by_ts Judy array). This saves us a lot of useless
+	 * lookup in to the Judy array.
+	 */
+	uint32_t                cur_retx_ts;
+	tcp_unackd_segs_list_t *cur_unackd_segs_list;
+
 	tcp_min_retx_ts_t min_retx_ts;
 
 	uint32_t last_retx_seg_seq;

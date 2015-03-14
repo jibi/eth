@@ -1001,6 +1001,39 @@ cur_conn_min_retx_ts()
 	return seg->retx_ts;
 }
 
+static inline
+tcp_unackd_segs_list_t *
+cur_ts_unackd_segs_list()
+{
+	void **segs_value;
+	tcp_unackd_segs_list_t *segs;
+
+	segs_value = judy_get(cur_conn->unackd_segs_by_ts, cur_conn->cur_retx_ts);
+
+	if (!segs_value) {
+		segs          = alloc_unackd_segs_list();
+		segs->retx_ts = cur_conn->cur_retx_ts;
+
+		list_init(&segs->seg_list_head);
+		judy_ins(&cur_conn->unackd_segs_by_ts, segs->retx_ts, segs);
+	} else {
+		segs = *segs_value;
+	}
+
+	return segs;
+}
+
+static inline
+void
+update_cur_conn_ts_unackd_segs_list() {
+	uint32_t cur_retx_ts = retx_ts();
+
+	if (cur_retx_ts > cur_conn->cur_retx_ts) {
+		cur_conn->cur_retx_ts          = cur_retx_ts;
+		cur_conn->cur_unackd_segs_list = cur_ts_unackd_segs_list();
+	}
+}
+
 void
 tcp_conn_send_data(void)
 {
@@ -1010,6 +1043,8 @@ tcp_conn_send_data(void)
 	ctx.last_http_hdr_pl_len = 0;
 
 	res = cur_conn->http_response;
+
+	update_cur_conn_ts_unackd_segs_list();
 
 	tcp_conn_send_data_http_hdr(&ctx);
 	tcp_conn_send_data_http_file(&ctx);
@@ -1109,22 +1144,7 @@ static inline
 void
 add_seg_to_ts_list(tcp_unackd_seg_t *seg)
 {
-	void **segs_value;
-	tcp_unackd_segs_list_t *segs;
-
-	segs_value = judy_get(cur_conn->unackd_segs_by_ts, seg->retx_ts);
-
-	if (!segs_value) {
-		segs          = alloc_unackd_segs_list();
-		segs->retx_ts = seg->retx_ts;
-
-		list_init(&segs->seg_list_head);
-		judy_ins(&cur_conn->unackd_segs_by_ts, segs->retx_ts, segs);
-	} else {
-		segs = *segs_value;
-	}
-
-	list_add_tail(&seg->ts_list_head, &segs->seg_list_head);
+	list_add_tail(&seg->ts_list_head, &cur_conn->cur_unackd_segs_list->seg_list_head);
 }
 
 static inline
@@ -1151,9 +1171,10 @@ track_unackd_segment(void)
 	tcp_unackd_seg_t       *seg;
 
 	seq          = cur_conn->last_sent_byte + 1;
+
 	seg          = alloc_unackd_seg();
 	seg->seq     = seq;
-	seg->retx_ts = retx_ts();
+	seg->retx_ts = cur_conn->cur_retx_ts;
 
 	add_seg_to_seq_list(seg);
 	add_seg_to_ts_list(seg);
@@ -1219,6 +1240,8 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 
 	res = cur_conn->http_response;
 
+	update_cur_conn_ts_unackd_segs_list();
+
 	if (start_byte < res->header_len) {
 		header_start = start_byte;
 		header_len   = MIN(cur_conn->client_opts.mss - sizeof(tcp_data_opts_t), res->header_len - header_start);
@@ -1248,7 +1271,7 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 
 	del_seg_from_ts_list(seg);
 
-	seg->retx_ts = retx_ts();
+	seg->retx_ts = cur_conn->cur_retx_ts;
 
 	add_seg_to_ts_list(seg);
 
