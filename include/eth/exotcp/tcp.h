@@ -34,7 +34,7 @@ typedef struct http_response_s http_response_t;
 #include <eth/mem_pool.h>
 
 #include <eth/datastruct/list.h>
-#include <eth/datastruct/rbtree.h>
+#include <eth/datastruct/judy.h>
 #include <eth/datastruct/hash.h>
 
 #define NETMAP_WITH_LIBS
@@ -175,8 +175,8 @@ typedef struct tcp_conn_key_s {
  * First. Each connection mantains a sequential (by sequence number) list of
  * unacked segments.
  *
- * Second. Each connection mantains an rbtree whose key is a timestamp and whose
- * value is a list of all the segments that share the same retransmission
+ * Second. Each connection mantains a Judy array whose key is a timestamp and
+ * whose value is a list of all the segments that share the same retransmission
  * timestamp.
  *
  * Since the struct is shared between these two data structures, there a bool
@@ -184,7 +184,7 @@ typedef struct tcp_conn_key_s {
  *
  * When a segment is acked, the bool ackd field is set to true, and in the
  * retransmission_loop, when the timer expires, the segment is just discarded
- * from the rbtree list (and free'd).
+ * from the Judy array list (and free'd).
  * Otherwise the segment is retransmitted, and its timestamp of retransmission
  * is updated.
  */
@@ -192,8 +192,6 @@ typedef struct tcp_conn_key_s {
 typedef struct tcp_unackd_segs_list_s {
 	uint32_t    retx_ts;       /* key */
 	list_head_t seg_list_head; /* value: actual list of segments who share the same retx timestamp */
-
-	rb_node_t   node;          /* rbtree internal stuff */
 } tcp_unackd_segs_list_t;
 
 typedef struct tcp_unackd_seg_s {
@@ -208,8 +206,6 @@ typedef struct tcp_unackd_seg_s {
 typedef struct tcp_min_retx_ts_list_s {
 	uint32_t    retx_ts;
 	list_head_t seg_list_head;
-
-	rb_node_t   node;
 } tcp_min_retx_ts_list_t;
 
 typedef struct tcp_min_retx_ts_s {
@@ -232,8 +228,8 @@ typedef struct tcp_conn_s {
 
 	uint32_t recv_eff_window;
 
-	list_head_t       unackd_segs_by_seq;
-	rb_root_t         unackd_segs_by_ts;
+	list_head_t   unackd_segs_by_seq;
+	judy_array_t *unackd_segs_by_ts;
 
 	tcp_min_retx_ts_t min_retx_ts;
 
@@ -269,7 +265,7 @@ typedef struct tcp_conn_s {
 
 extern hash_table_t *tcb_hash;
 extern tcp_conn_t   *cur_conn;
-extern rb_root_t     conns_min_retx_ts;
+extern judy_array_t *conns_min_retx_ts;
 
 static inline
 bool

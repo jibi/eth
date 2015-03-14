@@ -20,7 +20,7 @@ CC=gcc
 CFLAGS=-Wall -pedantic -Ofast -std=gnu11 -I ./include -isystem ./deps/netmap/sys
 LDFLAGS=-lJudy
 SOURCES=src/eth.c src/exotcp.c src/http11.c src/log.c src/netmap.c src/parser.c \
-src/datastruct/hash.c src/datastruct/list.c src/datastruct/rbtree.c\
+src/datastruct/hash.c src/datastruct/list.c \
 src/exotcp/arp.c src/exotcp/checksum.c src/exotcp/eth.c src/exotcp/icmp.c src/exotcp/ip.c src/exotcp/tcp.c
 PARSER=src/parser.c
 OBJECTS=$(SOURCES:.c=.o)

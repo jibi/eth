@@ -37,7 +37,7 @@
 #include <net/netmap_user.h>
 
 #include <eth/datastruct/list.h>
-#include <eth/datastruct/rbtree.h>
+#include <eth/datastruct/judy.h>
 
 struct nm_desc *netmap;
 list_head_t    *nm_tcp_conn_list;
@@ -127,10 +127,8 @@ nm_sync_rx_tx_ring(void)
 
 	if (nm_did_send_last_time) {
 		timeout = 0;
-	} else if (! RB_EMPTY_ROOT(&conns_min_retx_ts)) {
-		tcp_min_retx_ts_list_t *min_retx_ts =
-			rb_entry(rb_first(&conns_min_retx_ts), tcp_min_retx_ts_list_t, node);
-
+	} else if (!judy_empty(conns_min_retx_ts)) {
+		tcp_min_retx_ts_list_t *min_retx_ts = *judy_get_first(conns_min_retx_ts);
 		timeout = min_retx_ts->retx_ts - cur_ms_ts();
 	} else {
 		timeout = -1;
@@ -163,17 +161,19 @@ static inline
 void
 nm_retx_loop(void)
 {
-	rb_node_t *min_retx_ts_list_node, *tmp;
+	uint64_t min_seg_index;
+	void   **min_seg_value;
+
 	bool did_retx = false;
 
 	/*
-	 * global rbtree with min_retx_ts lists
+	 * global Judy array with min_retx_ts lists
 	 */
-	rbtree_for_each_node_safe(min_retx_ts_list_node, tmp, &conns_min_retx_ts) {
+	judy_for_each(conns_min_retx_ts, min_seg_index, min_seg_value) {
 		tcp_min_retx_ts_list_t *min_retx_ts_list;
-		tcp_min_retx_ts_t      *min_retx_ts, *tmp;
-		
-		min_retx_ts_list = rb_entry(min_retx_ts_list_node, tcp_min_retx_ts_list_t, node);
+		tcp_min_retx_ts_t *min_retx_ts, *tmp;
+
+		min_retx_ts_list = *min_seg_value;
 
 		if (min_retx_ts_list->retx_ts >= cur_ms_ts()) {
 			break;
@@ -183,19 +183,20 @@ nm_retx_loop(void)
 		 * min_retx_ts list, each entry is a connection
 		 */
 		list_for_each_entry_safe(min_retx_ts, tmp, &min_retx_ts_list->seg_list_head, head) {
-			rb_node_t *seg_node, *tmp;
+			uint64_t segs_list_index;
+			void   **segs_list_value;
 
 			set_cur_conn(min_retx_ts->conn);
 			set_cur_sock(cur_conn->sock)
 
 			/*
-			 * connection's rbtree with segments lists
+			 * connection's Jidy array with segments lists
 			 */
-			rbtree_for_each_node_safe(seg_node, tmp, &cur_conn->unackd_segs_by_ts) {
+			judy_for_each(cur_conn->unackd_segs_by_ts, segs_list_index, segs_list_value) {
 				tcp_unackd_segs_list_t *segs_list;
 				tcp_unackd_seg_t       *seg, *tmp;
 
-				segs_list = rb_entry(seg_node, tcp_unackd_segs_list_t, node);
+				segs_list = *segs_list_value;
 
 				list_for_each_entry_safe(seg, tmp, &segs_list->seg_list_head, ts_list_head) {
 					if (seg->retx_ts >= cur_ms_ts()) {
@@ -212,12 +213,12 @@ nm_retx_loop(void)
 				}
 
 				if (list_empty(&segs_list->seg_list_head)) {
-					rb_erase(seg_node, &cur_conn->unackd_segs_by_ts);
+					judy_del(&cur_conn->unackd_segs_by_ts, segs_list_index);
 					free_unackd_segs_list(segs_list);
 				}
 			}
 
-			if (RB_EMPTY_ROOT(&cur_conn->unackd_segs_by_ts)) {
+			if (judy_empty(cur_conn->unackd_segs_by_ts)) {
 				/*
 				 * remove entry from global retx list
 				 */
@@ -226,7 +227,7 @@ nm_retx_loop(void)
 		}
 
 		if (list_empty(&min_retx_ts_list->seg_list_head)) {
-			rb_erase(min_retx_ts_list_node, &conns_min_retx_ts);
+			judy_del(&conns_min_retx_ts, min_seg_index);
 			free_min_retx_ts_list(min_retx_ts_list);
 		}
 	}

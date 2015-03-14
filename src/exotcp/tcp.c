@@ -36,7 +36,7 @@
 #include <eth/exotcp/tcp.h>
 
 #include <eth/datastruct/list.h>
-#include <eth/datastruct/rbtree.h>
+#include <eth/datastruct/judy.h>
 #include <eth/datastruct/hash.h>
 
 #include <eth/mem_pool.h>
@@ -60,7 +60,7 @@ tcp_conn_t   *cur_conn;
 /*
  * each entry contains a tcp connection minimum retx timestamp
  */
-rb_root_t  conns_min_retx_ts;
+judy_array_t *conns_min_retx_ts;
 
 
 /*
@@ -273,7 +273,7 @@ init_tcp(void)
 
 	tcb_hash = hash_table_init(tcp_key_hash_func, cmp_tcp_conn);
 
-	conns_min_retx_ts = RB_ROOT;
+	conns_min_retx_ts = NULL;
 
 	init_unackd_seg_pool();
 	init_unackd_segs_list_pool();
@@ -541,7 +541,7 @@ new_tcp_conn()
 	list_add(&conn->nm_tcp_conn_list_head, nm_tcp_conn_list);
 
 	list_init(&conn->unackd_segs_by_seq);
-	conn->unackd_segs_by_ts = RB_ROOT;
+	conn->unackd_segs_by_ts = NULL;
 
 	conn->min_retx_ts.conn = conn;
 
@@ -995,12 +995,9 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 uint32_t
 cur_conn_min_retx_ts()
 {
-	rb_node_t *seg_node;
 	tcp_unackd_segs_list_t *seg;
 
-	seg_node = rb_first(&cur_conn->unackd_segs_by_ts);
-	seg      = rb_entry(seg_node, tcp_unackd_segs_list_t, node);
-
+	seg = *judy_get_first(cur_conn->unackd_segs_by_ts);
 	return seg->retx_ts;
 }
 
@@ -1078,132 +1075,27 @@ tcp_rst_checksum(void)
 		tcp_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp, NULL, 0, NULL, 0);
 }
 
-tcp_unackd_segs_list_t *
-search_segs_by_ts_list(rb_root_t *root, uint32_t retx_ts)
-{
-	rb_node_t *node = root->rb_node;
-
-	while (node) {
-		tcp_unackd_segs_list_t *segs;
-		int cmp;
-
-		segs = container_of(node, tcp_unackd_segs_list_t, node);
-		cmp  = retx_ts - segs->retx_ts;
-
-		if (cmp < 0) {
-			node = node->rb_left;
-		} else if (cmp > 0) {
-			node = node->rb_right;
-		} else {
-			return segs;
-		}
-	}
-
-	return NULL;
-}
-
-void
-insert_segs_by_ts_list(rb_root_t *root, tcp_unackd_segs_list_t *segs)
-{
-	rb_node_t **new;
-	rb_node_t *parent;
-
-	new    = &(root->rb_node);
-	parent = NULL;
-
-	while (*new) {
-		tcp_unackd_segs_list_t *this;
-		int cmp;
-
-		parent = *new;
-		this   = container_of(*new, tcp_unackd_segs_list_t, node);
-		cmp    = segs->retx_ts - this->retx_ts;
-
-		if (cmp < 0) {
-			new = &((*new)->rb_left);
-		} else if (cmp > 0) {
-			new = &((*new)->rb_right);
-		} else {
-			return;
-		}
-	}
-
-	rb_link_node(&segs->node, parent, new);
-	rb_insert_color(&segs->node, root);
-}
-
-tcp_min_retx_ts_list_t *
-search_min_retx_ts_list(rb_root_t *root, uint32_t retx_ts)
-{
-	rb_node_t *node = root->rb_node;
-
-	while (node) {
-		tcp_min_retx_ts_list_t *segs;
-		int cmp;
-
-		segs = container_of(node, tcp_min_retx_ts_list_t, node);
-		cmp  = retx_ts - segs->retx_ts;
-
-		if (cmp < 0) {
-			node = node->rb_left;
-		} else if (cmp > 0) {
-			node = node->rb_right;
-		} else {
-			return segs;
-		}
-	}
-
-	return NULL;
-}
-
-void
-insert_min_retx_ts_list(rb_root_t *root, tcp_min_retx_ts_list_t *retx_ts_list)
-{
-	rb_node_t **new;
-	rb_node_t *parent;
-
-	new    = &(root->rb_node);
-	parent = NULL;
-
-	while (*new) {
-		tcp_min_retx_ts_list_t *this;
-		int cmp;
-
-		parent = *new;
-		this   = container_of(*new, tcp_min_retx_ts_list_t, node);
-		cmp    = retx_ts_list->retx_ts - this->retx_ts;
-
-		if (cmp < 0) {
-			new = &((*new)->rb_left);
-		} else if (cmp > 0) {
-			new = &((*new)->rb_right);
-		} else {
-			return;
-		}
-	}
-
-	rb_link_node(&retx_ts_list->node, parent, new);
-	rb_insert_color(&retx_ts_list->node, root);
-}
-
 void
 insert_cur_conn_min_retx_ts()
 {
+	void                  **retx_ts_list_value;
 	tcp_min_retx_ts_t      *min_retx_ts;
 	tcp_min_retx_ts_list_t *retx_ts_list;
 
-	min_retx_ts  = &cur_conn->min_retx_ts;
-	retx_ts_list = search_min_retx_ts_list(&conns_min_retx_ts, min_retx_ts->retx_ts);
+	min_retx_ts        = &cur_conn->min_retx_ts;
+	retx_ts_list_value = judy_get(conns_min_retx_ts, min_retx_ts->retx_ts);
 
-	if (!retx_ts_list) {
+	if (!retx_ts_list_value) {
 		retx_ts_list = alloc_min_retx_ts_list();
 
 		retx_ts_list->retx_ts = min_retx_ts->retx_ts;
 		list_init(&retx_ts_list->seg_list_head);
+	} else {
+		retx_ts_list = *retx_ts_list_value;
 	}
 
 	list_add(&min_retx_ts->head, &retx_ts_list->seg_list_head);
-	insert_min_retx_ts_list(&conns_min_retx_ts, retx_ts_list);
+	judy_ins(&conns_min_retx_ts, retx_ts_list->retx_ts, retx_ts_list);
 }
 
 static inline
@@ -1217,16 +1109,19 @@ static inline
 void
 add_seg_to_ts_list(tcp_unackd_seg_t *seg)
 {
+	void **segs_value;
 	tcp_unackd_segs_list_t *segs;
 
-	segs = search_segs_by_ts_list(&cur_conn->unackd_segs_by_ts, seg->retx_ts);
+	segs_value = judy_get(cur_conn->unackd_segs_by_ts, seg->retx_ts);
 
-	if (!segs) {
+	if (!segs_value) {
 		segs          = alloc_unackd_segs_list();
 		segs->retx_ts = seg->retx_ts;
 
 		list_init(&segs->seg_list_head);
-		insert_segs_by_ts_list(&cur_conn->unackd_segs_by_ts, segs);
+		judy_ins(&cur_conn->unackd_segs_by_ts, segs->retx_ts, segs);
+	} else {
+		segs = *segs_value;
 	}
 
 	list_add_tail(&seg->ts_list_head, &segs->seg_list_head);
@@ -1238,12 +1133,12 @@ del_seg_from_ts_list(tcp_unackd_seg_t *seg)
 {
 	tcp_unackd_segs_list_t *segs_list;
 
-	segs_list = search_segs_by_ts_list(&cur_conn->unackd_segs_by_ts, seg->retx_ts);
+	segs_list = *judy_get(cur_conn->unackd_segs_by_ts, seg->retx_ts);
 
 	list_del(&seg->ts_list_head);
 
 	if (list_empty(&segs_list->seg_list_head)) {
-		rb_erase(&segs_list->node, &cur_conn->unackd_segs_by_ts);
+		judy_del(&cur_conn->unackd_segs_by_ts, segs_list->retx_ts);
 		free_unackd_segs_list(segs_list);
 	}
 }

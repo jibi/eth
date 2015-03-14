@@ -24,11 +24,20 @@
 
 #include <Judy.h>
 
+typedef void judy_array_t;
+
 static inline
 uint64_t
 judy_count(uint64_t *judy_array)
 {
 	return JudyLCount(judy_array, 0, -1, PJE0);
+}
+
+static inline
+bool
+judy_empty(uint64_t *judy_array)
+{
+	return judy_count(judy_array) == 0;
 }
 
 static inline
