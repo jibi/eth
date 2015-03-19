@@ -1014,7 +1014,7 @@ cur_ts_unackd_segs_list()
 		segs          = alloc_unackd_segs_list();
 		segs->retx_ts = cur_conn->cur_retx_ts;
 
-		list_init(&segs->seg_list_head);
+		list_init(&segs->ts_list_head);
 		judy_ins(&cur_conn->unackd_segs_by_ts, segs->retx_ts, segs);
 	} else {
 		segs = *segs_value;
@@ -1124,12 +1124,12 @@ insert_cur_conn_min_retx_ts()
 		retx_ts_list = alloc_min_retx_ts_list();
 
 		retx_ts_list->retx_ts = min_retx_ts->retx_ts;
-		list_init(&retx_ts_list->seg_list_head);
+		list_init(&retx_ts_list->ts_list_head);
 	} else {
 		retx_ts_list = *retx_ts_list_value;
 	}
 
-	list_add(&min_retx_ts->head, &retx_ts_list->seg_list_head);
+	list_add(&min_retx_ts->head, &retx_ts_list->ts_list_head);
 	judy_ins(&conns_min_retx_ts, retx_ts_list->retx_ts, retx_ts_list);
 }
 
@@ -1144,7 +1144,7 @@ static inline
 void
 add_seg_to_ts_list(tcp_unackd_seg_t *seg)
 {
-	list_add_tail(&seg->ts_list_head, &cur_conn->cur_unackd_segs_list->seg_list_head);
+	list_add_tail(&seg->ts_list_head, &cur_conn->cur_unackd_segs_list->ts_list_head);
 }
 
 static inline
@@ -1157,7 +1157,7 @@ del_seg_from_ts_list(tcp_unackd_seg_t *seg)
 
 	list_del(&seg->ts_list_head);
 
-	if (list_empty(&segs_list->seg_list_head)) {
+	if (list_empty(&segs_list->ts_list_head)) {
 		judy_del(&cur_conn->unackd_segs_by_ts, segs_list->retx_ts);
 		free_unackd_segs_list(segs_list);
 	}

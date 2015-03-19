@@ -191,7 +191,7 @@ typedef struct tcp_conn_key_s {
 
 typedef struct tcp_unackd_segs_list_s {
 	uint32_t    retx_ts;       /* key */
-	list_head_t seg_list_head; /* value: actual list of segments who share the same retx timestamp */
+	list_head_t ts_list_head; /* value: actual list of segments who share the same retx timestamp */
 } tcp_unackd_segs_list_t;
 
 typedef struct tcp_unackd_seg_s {
@@ -205,7 +205,7 @@ typedef struct tcp_unackd_seg_s {
 
 typedef struct tcp_min_retx_ts_list_s {
 	uint32_t    retx_ts;
-	list_head_t seg_list_head;
+	list_head_t ts_list_head;
 } tcp_min_retx_ts_list_t;
 
 typedef struct tcp_min_retx_ts_s {

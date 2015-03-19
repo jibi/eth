@@ -182,7 +182,7 @@ nm_retx_loop(void)
 		/*
 		 * min_retx_ts list, each entry is a connection
 		 */
-		list_for_each_entry_safe(min_retx_ts, tmp, &min_retx_ts_list->seg_list_head, head) {
+		list_for_each_entry_safe(min_retx_ts, tmp, &min_retx_ts_list->ts_list_head, head) {
 			uint64_t segs_list_index;
 			void   **segs_list_value;
 
@@ -198,7 +198,7 @@ nm_retx_loop(void)
 
 				segs_list = *segs_list_value;
 
-				list_for_each_entry_safe(seg, tmp, &segs_list->seg_list_head, ts_list_head) {
+				list_for_each_entry_safe(seg, tmp, &segs_list->ts_list_head, ts_list_head) {
 					if (seg->retx_ts >= cur_ms_ts()) {
 						break;
 					}
@@ -212,7 +212,7 @@ nm_retx_loop(void)
 					}
 				}
 
-				if (list_empty(&segs_list->seg_list_head)) {
+				if (list_empty(&segs_list->ts_list_head)) {
 					judy_del(&cur_conn->unackd_segs_by_ts, segs_list_index);
 					free_unackd_segs_list(segs_list);
 				}
@@ -222,11 +222,11 @@ nm_retx_loop(void)
 				/*
 				 * remove entry from global retx list
 				 */
-				list_del(&min_retx_ts_list->seg_list_head);
+				list_del(&min_retx_ts_list->ts_list_head);
 			}
 		}
 
-		if (list_empty(&min_retx_ts_list->seg_list_head)) {
+		if (list_empty(&min_retx_ts_list->ts_list_head)) {
 			judy_del(&conns_min_retx_ts, min_seg_index);
 			free_min_retx_ts_list(min_retx_ts_list);
 		}
