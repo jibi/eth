@@ -334,9 +334,6 @@ void process_tcp(void);
 int tcp_conn_has_data_to_send(void);
 void tcp_conn_send_data(void);
 
-void sort_unackd_segments(void);
-void sort_min_retx_ts(void);
-
 void tcp_retransm_segment(tcp_unackd_seg_t *seg);
 
 #define set_cur_conn(x) cur_conn = x
