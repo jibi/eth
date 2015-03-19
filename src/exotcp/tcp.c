@@ -1194,17 +1194,19 @@ ack_segment(void)
 	seq = cur_conn->last_ackd_byte;
 
 	list_for_each_entry_safe(seg, tmp, &cur_conn->unackd_segs_by_seq, seq_list_head) {
-		if (cmp_seq(seg->seq, seq) < 0) {
-			log_debug2("removing segment %d (conn %p) from unacked segments array", seg->seq, cur_conn);
-
-			/*
-			 * we dont free here the segment descriptor (it will be done later in the
-			 * retx loop
-			 */
-			seg->ackd = true;
-
-			list_del(&seg->seq_list_head);
+		if (cmp_seq(seg->seq, seq) >= 0) {
+			break;
 		}
+
+		log_debug2("removing segment %d (conn %p) from unacked segments array", seg->seq, cur_conn);
+
+		/*
+		 * we dont free here the segment descriptor (it will be done later in the
+		 * retx loop
+		 */
+		seg->ackd = true;
+
+		list_del(&seg->seq_list_head);
 	}
 
 	if (list_empty(&cur_conn->unackd_segs_by_seq) && list_head_attached(&cur_conn->min_retx_ts.head)) {
