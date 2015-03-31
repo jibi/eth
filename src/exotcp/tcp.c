@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include <arpa/inet.h>
 #include <netinet/ether.h>
@@ -515,21 +516,24 @@ new_tcp_conn()
 		rand_seq = rand();
 	} while (!(rand_seq + 1));
 
-	conn->key             = conn_key;
-	conn->key->src_port   = cur_pkt->tcp_hdr->src_port;
-	conn->key->src_addr   = cur_pkt->ip_hdr->src_addr;
+	conn->key            = conn_key;
+	conn->key->src_port  = cur_pkt->tcp_hdr->src_port;
+	conn->key->src_addr  = cur_pkt->ip_hdr->src_addr;
 
-	conn->sock            = malloc(sizeof(socket_t));
+	conn->sock           = malloc(sizeof(socket_t));
 	memcpy(conn->sock, cur_sock, sizeof(socket_t));
 
-	conn->last_recv_byte  = ntohl(cur_pkt->tcp_hdr->seq);
-	conn->last_sent_byte  = rand_seq;
-	conn->state           = SYN_RCVD;
-	conn->recv_eff_window = 0;
-	conn->data_len        = 0;
-	conn->http_response   = NULL;
+	conn->last_recv_byte = ntohl(cur_pkt->tcp_hdr->seq);
+	conn->last_sent_byte = rand_seq;
+	conn->state          = SYN_RCVD;
+	conn->eff_window     = 0;
+	conn->cng_window     = TCP_INIT_CNG_WINDOW;
 
-	conn->rtt             = 1000;
+	conn->slow_start     = true;
+	conn->data_len       = 0;
+	conn->http_response  = NULL;
+
+	conn->rtt            = 1000;
 
 	conn->client_opts.win_scale = 0;
 	conn->client_opts.sack_perm = 0;
@@ -668,16 +672,73 @@ process_tcp_segment_data(void)
 
 static inline
 void
-update_tcp_eff_window() {
-	uint16_t adv_win   = ntohs(cur_pkt->tcp_hdr->window);
-	uint8_t  win_scale = cur_conn->client_opts.win_scale;
+update_tcp_eff_window()
+{
+	uint32_t max_window;
 
-	cur_conn->recv_eff_window = (adv_win << win_scale) - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+	max_window           = MIN(cur_conn->adv_window, cur_conn->cng_window);
+	cur_conn->eff_window = max_window - (cur_conn->last_sent_byte - cur_conn->last_ackd_byte);
+}
+
+static inline
+void
+update_tcp_adv_window()
+{
+	uint16_t adv_window   = ntohs(cur_pkt->tcp_hdr->window);
+	uint8_t  window_scale = cur_conn->client_opts.win_scale;
+
+	cur_conn->adv_window = adv_window << window_scale;
+
+	update_tcp_eff_window();
+}
+
+static inline
+void
+inc_tcp_cng_window()
+{
+	/*
+	 * overflow checks
+	 */
+	if (unlikely(cur_conn->slow_start)) {
+		if (cur_conn->cng_window > UINT_MAX/2) {
+			cur_conn->cng_window = UINT_MAX;
+		} else {
+			cur_conn->cng_window *= 2;
+		}
+	} else {
+		double increment = TCP_MSS * (TCP_MSS/cur_conn->cng_window);
+
+		if (cur_conn->cng_window > UINT_MAX - TCP_MSS) {
+			cur_conn->cng_window = UINT_MAX;
+		} else {
+			cur_conn->cng_window += increment;
+		}
+	}
+
+	update_tcp_eff_window();
+}
+
+static inline
+void
+dec_tcp_cng_window()
+{
+	if (cur_conn->slow_start) {
+		cur_conn->slow_start = false;
+	}
+
+	if (cur_conn->cng_window > TCP_MSS) {
+		cur_conn->cng_window /= 2;
+	} else {
+		cur_conn->cng_window = TCP_MSS;
+	}
+
+	update_tcp_eff_window();
 }
 
 static inline
 bool
-tcp_seq_is_dup() {
+tcp_seq_is_dup()
+{
 	return cmp_seq(ntohl(cur_pkt->tcp_hdr->seq), cur_conn->last_recv_byte) <= 0;
 }
 
@@ -715,7 +776,7 @@ process_tcp_segment_ack(void)
 		}
 	} else {
 		cur_conn->last_ackd_byte = new_ack;
-		update_tcp_eff_window();
+		update_tcp_adv_window();
 
 		ack_segment();
 	}
@@ -785,7 +846,8 @@ process_closed_ack(void)
 
 static inline
 void
-process_tcp_with_conn() {
+process_tcp_with_conn()
+{
 	switch (cur_conn->state) {
 		case ESTABLISHED:
 			if (flag_fin(cur_pkt->tcp_hdr)) {
@@ -809,7 +871,8 @@ process_tcp_with_conn() {
 
 static inline
 void
-process_tcp_without_conn(void) {
+process_tcp_without_conn(void)
+{
 	if (flag_syn(cur_pkt->tcp_hdr)) {
 		process_tcp_new_conn();
 	} else {
@@ -896,8 +959,8 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx)
 		if (payload_len == cur_conn->client_opts.mss - sizeof(tcp_data_opts_t) || res->file_len == 0) {
 			send_tcp_data(tx_desc.buf, payload_buf, payload_len);
 
-			cur_conn->last_sent_byte  += payload_len;
-			cur_conn->recv_eff_window -= payload_len;
+			cur_conn->last_sent_byte += payload_len;
+			cur_conn->eff_window     -= payload_len;
 
 		} else {
 			ctx->http_hdr_last_tx_desc.buf = tx_desc.buf;
@@ -953,8 +1016,8 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf) + payload_offset;
 			payload_len = MIN(ETH_MTU - (sizeof(data_tcp_packet) + payload_offset), res->file_len - res->file_pos);
 
-			*tx_desc[iovcnt].len = sizeof(data_tcp_packet) + payload_offset + payload_len;
-			cur_conn->recv_eff_window -= payload_offset + payload_len;
+			*tx_desc[iovcnt].len  = sizeof(data_tcp_packet) + payload_offset + payload_len;
+			cur_conn->eff_window -= payload_offset + payload_len;
 
 			payload_offset = 0;
 		} else {
@@ -963,8 +1026,8 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf);
 			payload_len = MIN(ETH_MTU - sizeof(data_tcp_packet), res->file_len - res->file_pos);
 
-			*tx_desc[iovcnt].len       = sizeof(data_tcp_packet) + payload_len;
-			cur_conn->recv_eff_window -= payload_len;
+			*tx_desc[iovcnt].len  = sizeof(data_tcp_packet) + payload_len;
+			cur_conn->eff_window -= payload_len;
 		}
 
 		iov[iovcnt].iov_base = payload_buf;
@@ -1167,8 +1230,8 @@ static inline
 void
 track_unackd_segment(void)
 {
-	uint32_t                seq;
-	tcp_unackd_seg_t       *seg;
+	uint32_t          seq;
+	tcp_unackd_seg_t *seg;
 
 	seq          = cur_conn->last_sent_byte + 1;
 
@@ -1205,6 +1268,7 @@ ack_segment(void)
 		 * retx loop
 		 */
 		seg->ackd = true;
+		inc_tcp_cng_window();
 
 		list_del(&seg->seq_list_head);
 	}
@@ -1244,6 +1308,7 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 
 	update_cur_conn_ts_unackd_segs_list();
 
+
 	if (start_byte < res->header_len) {
 		header_start = start_byte;
 		header_len   = MIN(cur_conn->client_opts.mss - sizeof(tcp_data_opts_t), res->header_len - header_start);
@@ -1263,8 +1328,8 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 	payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc.buf);
 	payload_len = header_len + file_len;
 
-	*tx_desc.len               = sizeof(data_tcp_packet) + payload_len;
-	cur_conn->recv_eff_window -= payload_len;
+	*tx_desc.len          = sizeof(data_tcp_packet) + payload_len;
+	cur_conn->eff_window -= payload_len;
 
 	memcpy(payload_buf, res->header_buf + header_start, header_len);
 	pread(res->file_fd, payload_buf + header_len, file_len, file_start);
@@ -1279,5 +1344,7 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 
 	cur_conn->last_retx_seg_seq = seg->seq;
 	cur_conn->last_retx_seg_ts  = seg->retx_ts;
+
+	dec_tcp_cng_window();
 }
 

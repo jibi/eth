@@ -48,6 +48,16 @@
 		(sizeof(arr) / sizeof((arr)[0]))
 
 static inline
+uint64_t
+cur_us_ts(void)
+{
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+	return 1000000 * (uint64_t) tv.tv_sec + tv.tv_usec;
+}
+
+static inline
 uint32_t
 cur_ms_ts(void)
 {

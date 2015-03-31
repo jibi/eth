@@ -153,6 +153,8 @@ typedef tcp_ts_opts_t tcp_fin_ack_opts_t;
 #define TCP_MSS       (ETH_MTU - sizeof(ip_hdr_t) - sizeof(tcp_hdr_t))
 #define TCP_WIN_SCALE 0
 
+#define TCP_INIT_CNG_WINDOW (10 * TCP_MSS)
+
 typedef enum tcp_state_e {
 	SYN_RCVD,
 	SYN_SENT,
@@ -226,7 +228,9 @@ typedef struct tcp_conn_s {
 
 	tcp_state_t state;
 
-	uint32_t recv_eff_window;
+	uint32_t adv_window;
+	uint32_t eff_window;
+	uint32_t cng_window;
 
 	list_head_t   unackd_segs_by_seq;
 	judy_array_t *unackd_segs_by_ts;
@@ -248,6 +252,8 @@ typedef struct tcp_conn_s {
 	tcp_unackd_segs_list_t *cur_unackd_segs_list;
 
 	tcp_min_retx_ts_t min_retx_ts;
+
+	bool     slow_start;
 
 	uint32_t last_retx_seg_seq;
 	uint32_t last_retx_seg_ts;
@@ -317,7 +323,7 @@ static inline
 int
 tcp_conn_has_open_window(void)
 {
-	return cur_conn->recv_eff_window > ETH_MTU;
+	return cur_conn->eff_window > ETH_MTU;
 }
 
 static inline
