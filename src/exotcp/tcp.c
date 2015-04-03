@@ -21,6 +21,8 @@
 #include <string.h>
 #include <limits.h>
 
+#include <pthread.h>
+
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 
@@ -56,7 +58,7 @@ hash_table_t *tcb_hash;
 /*
  * pointer to current connection
  */
-tcp_conn_t   *cur_conn;
+pthread_key_t   _cur_conn;
 
 /*
  * each entry contains a tcp connection minimum retx timestamp

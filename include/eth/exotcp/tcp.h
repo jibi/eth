@@ -25,6 +25,8 @@ typedef struct http_response_s http_response_t;
 #include <stdio.h>
 #include <stdint.h>
 
+#include <pthread.h>
+
 #include <eth/netmap.h>
 #include <eth/exotcp.h>
 #include <eth/http11.h>
@@ -285,9 +287,12 @@ typedef struct tcp_conn_s {
 	uint32_t         http_response_start_seq;
 } tcp_conn_t;
 
-extern hash_table_t *tcb_hash;
-extern tcp_conn_t   *cur_conn;
-extern judy_array_t *conns_min_retx_ts;
+extern hash_table_t  *tcb_hash;
+extern pthread_key_t _cur_conn;
+extern judy_array_t  *conns_min_retx_ts;
+
+#define cur_conn        ((tcp_conn_t *) pthread_getspecific(_cur_conn))
+#define set_cur_conn(x) pthread_setspecific(_cur_conn, x)
 
 static inline
 bool
@@ -342,7 +347,6 @@ void tcp_conn_send_data(void);
 
 void tcp_retransm_segment(tcp_unackd_seg_t *seg);
 
-#define set_cur_conn(x) cur_conn = x
 
 define_mem_pool(unackd_seg, tcp_unackd_seg_t, 4000000)
 define_mem_pool(unackd_segs_list, tcp_unackd_segs_list_t, 4000000)
