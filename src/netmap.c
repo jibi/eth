@@ -38,13 +38,60 @@
 
 #include <eth/datastruct/list.h>
 #include <eth/datastruct/judy.h>
+#include <eth/datastruct/async_queue.h>
 
 struct nm_desc *netmap;
 list_head_t    *nm_tcp_conn_list;
 tcp_conn_t     *nm_send_loop_cur_conn = NULL;
+pthread_key_t  _cur_tx_ring_n;
 
 static bool nm_did_send_last_time   = false;
 static bool nm_recv_loop_has_sent;
+static pthread_t *nm_sender_workers;
+static async_queue_t **nm_worker_queues;
+
+static inline int nm_tx_rings_count();
+static void * nm_sender_worker(void *args);
+
+void
+init_nm_sender_worker()
+{
+	nm_sender_workers = malloc(nm_tx_rings_count() * sizeof(pthread_t));
+	nm_worker_queues  = malloc(nm_tx_rings_count() * sizeof(async_queue_t *));
+
+	for (int i = 0; i < nm_tx_rings_count(); i++) {
+		nm_worker_queues[i]  = async_queue_new();
+		worker_ctx_t *ctx = malloc(sizeof(worker_ctx_t));
+
+		ctx->tx_ring_n = i;
+		ctx->works     = nm_worker_queues[i];
+
+		pthread_create(&nm_sender_workers[i], NULL, nm_sender_worker, ctx);
+	}
+}
+
+static
+void *
+nm_sender_worker(void *args)
+{
+	worker_ctx_t *ctx = args;
+
+	set_cur_tx_ring_n(ctx->tx_ring_n);
+	async_queue_t *works = ctx->works;
+
+	free(ctx);
+
+	while (true) {
+		tcp_conn_t *conn = async_queue_pop(works);
+
+		set_cur_conn(conn);
+		set_cur_sock(conn->sock);
+
+		tcp_conn_send_data();
+	}
+
+	return NULL;
+}
 
 void
 init_netmap(char *ifname)
@@ -62,10 +109,21 @@ init_netmap(char *ifname)
 }
 
 static inline
+int
+nm_tx_rings_count()
+{
+	return netmap->req.nr_tx_rings;
+}
+
+static inline
 void
 nm_sync_pending_tx() {
-	while (nm_tx_pending(NETMAP_TXRING(netmap->nifp, 0))) {
-		ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+	int ring_n;
+
+	for (ring_n = 0; ring_n < nm_tx_rings_count(); ring_n++) {
+		while (nm_tx_pending(NETMAP_TXRING(netmap->nifp, ring_n))) {
+			ioctl(NETMAP_FD(netmap), NIOCTXSYNC);
+		}
 	}
 }
 
@@ -244,33 +302,36 @@ nm_send_loop(void)
 	struct netmap_ring *send_ring;
 	static bool resume_loop = false;
 
-	send_ring = NETMAP_TXRING(netmap->nifp, 0);
+	int ring_n;
 
-	do {
-		if (unlikely(!resume_loop)) {
-			nm_send_loop_cur_conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
-		}
+	for (ring_n = 0; ring_n < nm_tx_rings_count(); ring_n++) {
 
-		resume_loop           = false;
-		nm_did_send_last_time = false;
+		send_ring = NETMAP_TXRING(netmap->nifp, ring_n);
 
-		tcp_conn_t *n;
-		list_for_each_entry_safe_from(nm_send_loop_cur_conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
-			set_cur_conn(nm_send_loop_cur_conn);
-
-			if (unlikely(nm_ring_empty(send_ring))) {
-				resume_loop = true;
-				break;
+		do {
+			if (unlikely(!resume_loop)) {
+				nm_send_loop_cur_conn = list_first_entry(nm_tcp_conn_list, tcp_conn_t, nm_tcp_conn_list_head);
 			}
 
-			if (tcp_conn_has_data_to_send()) {
-				set_cur_sock(cur_conn->sock);
+			resume_loop           = false;
+			nm_did_send_last_time = false;
 
-				tcp_conn_send_data();
-				nm_did_send_last_time = true;
+			tcp_conn_t *n;
+			list_for_each_entry_safe_from(nm_send_loop_cur_conn, n, nm_tcp_conn_list, nm_tcp_conn_list_head) {
+				set_cur_conn(nm_send_loop_cur_conn);
+
+				if (unlikely(nm_ring_empty(send_ring))) {
+					resume_loop = true;
+					break;
+				}
+
+				if (tcp_conn_has_data_to_send()) {
+					async_queue_push(nm_worker_queues[ring_n], nm_send_loop_cur_conn);
+					nm_did_send_last_time = true;
+				}
 			}
-		}
-	} while ((!nm_ring_empty(send_ring)) && nm_did_send_last_time);
+		} while ((!nm_ring_empty(send_ring)) && nm_did_send_last_time);
+	}
 }
 
 void
@@ -290,7 +351,7 @@ int
 nm_send_ring_empty(void)
 {
 	struct netmap_ring *ring;
-	ring = NETMAP_TXRING(netmap->nifp, 0);
+	ring = NETMAP_TXRING(netmap->nifp, cur_tx_ring_n);
 
 	return nm_ring_empty(ring);
 }
@@ -301,7 +362,7 @@ nm_get_tx_buff(nm_tx_desc_t *tx_desc)
 	struct netmap_ring *ring;
 	int i, idx;
 
-	ring = NETMAP_TXRING(netmap->nifp, 0);
+	ring = NETMAP_TXRING(netmap->nifp, cur_tx_ring_n);
 
 	if (nm_ring_empty(ring)) {
 		log_warn("send ring full in nm_get_tx_buff(), syncing");
