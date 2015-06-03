@@ -22,7 +22,7 @@
 #include <stdint.h>
 
 #include <eth/exotcp.h>
-#include <eth/exotcp/ip.h>
+#include <eth/exotcp/ipv4.h>
 
 typedef struct icmp_echo_req_hdr_s {
 	uint8_t  type;

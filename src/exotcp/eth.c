@@ -32,7 +32,7 @@
 #include <eth/exotcp.h>
 #include <eth/exotcp/eth.h>
 #include <eth/exotcp/arp.h>
-#include <eth/exotcp/ip.h>
+#include <eth/exotcp/ipv4.h>
 #include <eth/exotcp/tcp.h>
 
 void
