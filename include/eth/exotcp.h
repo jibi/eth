@@ -20,6 +20,7 @@
 #define _ETH_EXOTCP_H
 
 #include <string.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -58,12 +59,16 @@ typedef struct socket_s {
 } socket_t;
 
 extern struct ether_addr mac_addr;
-extern struct in_addr    ip_addr;
+extern struct in_addr    ipv4_addr;
+extern struct in6_addr   ipv6_addr;
 extern uint16_t          listening_port;
+bool                     ipv4_listen;
+bool                     ipv6_listen;
+
 extern packet_t          *cur_pkt;
 extern socket_t          *cur_sock;
 
-void init_exotcp(char *mac, char *ip, uint16_t port);
+void init_exotcp(char *mac, char *ipv4, char *ipv6, uint16_t port);
 
 #define set_cur_pkt(x)  cur_pkt = x;
 #define set_cur_sock(x) cur_sock = x;
@@ -77,9 +82,16 @@ is_this_card_mac(struct ether_addr *addr)
 
 static inline
 int
-is_this_card_ip(struct in_addr *addr)
+is_this_card_ipv4(struct in_addr *addr)
 {
-	return ! memcmp(&ip_addr, addr, sizeof(struct in_addr));
+	return ! memcmp(&ipv4_addr, addr, sizeof(struct in_addr));
+}
+
+static inline
+int
+is_this_card_ipv6(struct in6_addr *addr)
+{
+	return ! memcmp(&ipv6_addr, addr, sizeof(struct in6_addr));
 }
 
 #endif

@@ -28,17 +28,33 @@
 #include <eth/exotcp/tcp.h>
 
 struct ether_addr mac_addr;
-struct in_addr    ip_addr;
+struct in_addr    ipv4_addr;
+struct in6_addr   ipv6_addr;
 uint16_t          listening_port;
+bool              ipv4_listen;
+bool              ipv6_listen;
 
 packet_t          *cur_pkt;
 socket_t          *cur_sock;
 
 void
-init_exotcp(char *mac, char *ip, uint16_t port)
+init_exotcp(char *mac, char *ipv4, char *ipv6, uint16_t port)
 {
+	ipv4_listen = false;
+	ipv6_listen = false;
+
 	ether_aton_r(mac, &mac_addr);
-	inet_aton(ip, &ip_addr);
+
+	if (ipv4) {
+		inet_aton(ipv4, &ipv4_addr);
+		ipv4_listen = true;
+	}
+
+	if (ipv6) {
+		inet_pton(AF_INET6, ipv6, &ipv6_addr);
+		ipv6_listen = true;
+	}
+
 	listening_port = port;
 
 	init_arp();

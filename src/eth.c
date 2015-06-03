@@ -46,12 +46,13 @@ signal_handler(int signo)
 int
 main(int argc, char *argv[])
 {
-	char *dev, *mac, *ip;
+	char *dev, *mac, *ipv4, *ipv6;
 	uint16_t port;
 
 	dev  = NULL;
 	mac  = NULL;
-	ip   = NULL;
+	ipv4 = NULL;
+	ipv6 = NULL;
 	port = 0;
 
 	while (1) {
@@ -61,12 +62,13 @@ main(int argc, char *argv[])
 		static struct option long_options[] = {
 			{"dev",  required_argument, 0, 'd'},
 			{"mac",  required_argument, 0, 'm'},
-			{"ip",   required_argument, 0, 'i'},
+			{"ipv4", required_argument, 0, 'i'},
+			{"ipv6", required_argument, 0, 'I'},
 			{"port", required_argument, 0, 'p'},
 			{0, 0, 0, 0}
 		};
 
-		c = getopt_long (argc, argv, "d:m:i:p:", long_options, &option_index);
+		c = getopt_long (argc, argv, "d:m:i:I:p:", long_options, &option_index);
 
 		if (c == -1) {
 			break;
@@ -80,7 +82,10 @@ main(int argc, char *argv[])
 				mac = optarg;
 				break;
 			case 'i':
-				ip  = optarg;
+				ipv4  = optarg;
+				break;
+			case 'I':
+				ipv6  = optarg;
 				break;
 			case 'p':
 				port = atoi(optarg);
@@ -101,7 +106,7 @@ main(int argc, char *argv[])
 		fatal_tragedy(1, "you need to specify the device's mac address");
 	}
 
-	if (!ip) {
+	if (!ipv4 && !ipv6) {
 		fatal_tragedy(1, "you need to specify the device's ip address");
 	}
 
@@ -115,7 +120,7 @@ main(int argc, char *argv[])
 	log_info("Hi, this is Eth version %s", ETH_VERSION);
 
 	init_netmap(dev);
-	init_exotcp(mac, ip, port);
+	init_exotcp(mac, ipv4, ipv6, port);
 
 	nm_loop();
 
