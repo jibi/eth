@@ -35,6 +35,7 @@ typedef struct eth_hdr_s {
 } __attribute__ ((packed)) eth_hdr_t;
 
 #define ETH_TYPE_IPV4 HTONS(0x0800)
+#define ETH_TYPE_IPV6 HTONS(0x86DD)
 #define ETH_TYPE_ARP  HTONS(0x0806)
 
 #define ETH_MTU (1500 + sizeof(eth_hdr_t))
