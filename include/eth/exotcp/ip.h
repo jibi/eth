@@ -24,7 +24,7 @@
 #include <eth/exotcp.h>
 #include <eth/exotcp/tcp.h>
 
-typedef struct ip_hdr_s {
+typedef struct ipv4_hdr_s {
 	uint32_t hdr_len:4;
 	uint32_t version:4;
 	uint8_t  tos;
@@ -36,16 +36,16 @@ typedef struct ip_hdr_s {
 	uint16_t checksum;
 	uint32_t src_addr;
 	uint32_t dst_addr;
-} __attribute__ ((packed)) ip_hdr_t;
+} __attribute__ ((packed)) ipv4_hdr_t;
 
 #define IP_PROTO_ICMP 0x1
 #define IP_PROTO_TCP  0x6
 
-#define ip_data_len(ip_hdr) (ntohs(ip_hdr->total_len) - sizeof(ip_hdr_t))
+#define ipv4_data_len(ip_hdr) (ntohs(ip_hdr->total_len) - sizeof(ipv4_hdr_t))
 
-void init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto);
-void setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t payload_len);
-void process_ip(void);
+void init_ipv4_packet(ipv4_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto);
+void setup_ipv4_hdr(ipv4_hdr_t *ip_hdr, uint16_t payload_len);
+void process_ipv4(void);
 
 #endif
 

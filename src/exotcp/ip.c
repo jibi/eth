@@ -27,10 +27,10 @@
 #include <eth/exotcp/tcp.h>
 #include <eth/exotcp/icmp.h>
 
-static inline void ip_checksum(ip_hdr_t *ip_hdr);
+static inline void ipv4_checksum(ipv4_hdr_t *ip_hdr);
 
 void
-init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
+init_ipv4_packet(ipv4_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
 {
 	ip_hdr->version     = 4;
 	ip_hdr->hdr_len     = 5;
@@ -39,7 +39,7 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
 	 * data_len is the ip payload length.
 	 * For example, given a TCP ack packet it should be sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t),
 	 */
-	ip_hdr->total_len   = HTONS(sizeof(ip_hdr_t) + data_len);
+	ip_hdr->total_len   = HTONS(sizeof(ipv4_hdr_t) + data_len);
 	ip_hdr->id          = 0;
 	ip_hdr->frag_offset = HTONS(0x4000); /* dont fragment */
 	ip_hdr->ttl         = 64;
@@ -49,21 +49,21 @@ init_ip_packet(ip_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
 }
 
 void
-setup_ip_hdr(ip_hdr_t *ip_hdr, uint16_t new_data_len)
+setup_ipv4_hdr(ipv4_hdr_t *ip_hdr, uint16_t new_data_len)
 {
 	ip_hdr->dst_addr = cur_sock->src_ip;
 
 	if (new_data_len) {
-		ip_hdr->total_len = HTONS(sizeof(ip_hdr_t) + new_data_len);
+		ip_hdr->total_len = HTONS(sizeof(ipv4_hdr_t) + new_data_len);
 	}
 
-	ip_checksum(ip_hdr);
+	ipv4_checksum(ip_hdr);
 }
 
 void
-process_ip(void)
+process_ipv4(void)
 {
-	cur_pkt->ip_hdr  = (ip_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
+	cur_pkt->ip_hdr  = (ipv4_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t));
 	cur_sock->src_ip = cur_pkt->ip_hdr->src_addr;
 
 	if (unlikely(cur_pkt->ip_hdr->version != 4)) {
@@ -86,9 +86,9 @@ process_ip(void)
 
 static inline
 void
-ip_checksum(ip_hdr_t *ip_hdr)
+ipv4_checksum(ipv4_hdr_t *ip_hdr)
 {
 	ip_hdr->checksum = 0;
-	ip_hdr->checksum = checksum((uint8_t *) ip_hdr, sizeof(ip_hdr_t));
+	ip_hdr->checksum = checksum((uint8_t *) ip_hdr, sizeof(ipv4_hdr_t));
 }
 

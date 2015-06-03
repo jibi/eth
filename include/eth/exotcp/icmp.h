@@ -34,7 +34,7 @@ typedef struct icmp_echo_req_hdr_s {
 } __attribute__ ((packed)) icmp_echo_req_hdr_t;
 
 #define icmp_echo_req_data(x)     (((uint8_t *) x->icmp_echo_req_hdr) + sizeof(icmp_echo_req_hdr_t))
-#define icmp_echo_req_data_len(x) (ip_data_len(x->ip_hdr) - sizeof(icmp_echo_req_hdr_t))
+#define icmp_echo_req_data_len(x) (ipv4_data_len(x->ip_hdr) - sizeof(icmp_echo_req_hdr_t))
 
 typedef struct icmp_echo_rpl_hdr_s {
 	uint8_t  type;

@@ -69,46 +69,46 @@ judy_array_t *conns_min_retx_ts;
  */
 struct {
 	eth_hdr_t          eth;
-	ip_hdr_t           ip;
+	ipv4_hdr_t         ip;
 	tcp_hdr_t          tcp;
 	tcp_syn_ack_opts_t opts;
-} __attribute__ ((packed)) syn_ack_tcp_packet;
+} __attribute__ ((packed)) syn_ack_ipv4_tcp_packet;
 
 /*
  * prebuilt packet: sent when the server needs to ACK a client packet
  */
 struct {
 	eth_hdr_t      eth;
-	ip_hdr_t       ip;
+	ipv4_hdr_t     ip;
 	tcp_hdr_t      tcp;
 	tcp_ack_opts_t opts;
-} __attribute__ ((packed)) ack_tcp_packet;
+} __attribute__ ((packed)) ack_ipv4_tcp_packet;
 
 /*
  * preinit packet: used to send data
  */
 struct {
 	eth_hdr_t       eth;
-	ip_hdr_t        ip;
+	ipv4_hdr_t      ip;
 	tcp_hdr_t       tcp;
 	tcp_data_opts_t opts;
-} __attribute__ ((packed)) data_tcp_packet;
+} __attribute__ ((packed)) data_ipv4_tcp_packet;
 
 /*
  * preinit packet: sent to ack a fin packet
  */
 struct {
 	eth_hdr_t          eth;
-	ip_hdr_t           ip;
+	ipv4_hdr_t         ip;
 	tcp_hdr_t          tcp;
 	tcp_fin_ack_opts_t opts;
-} __attribute__ ((packed)) fin_ack_tcp_packet;
+} __attribute__ ((packed)) fin_ack_ipv4_tcp_packet;
 
 struct {
 	eth_hdr_t          eth;
-	ip_hdr_t           ip;
+	ipv4_hdr_t         ip;
 	tcp_hdr_t          tcp;
-} __attribute__ ((packed)) rst_tcp_packet;
+} __attribute__ ((packed)) rst_ipv4_tcp_packet;
 
 typedef struct tcp_send_data_ctx_s {
 	nm_tx_desc_t http_hdr_last_tx_desc;
@@ -185,12 +185,12 @@ setup_tcp_hdr(tcp_hdr_t *hdr)
 void
 init_syn_ack_tcp_packet(void)
 {
-	init_eth_packet(&syn_ack_tcp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&syn_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t), IP_PROTO_TCP);
-	init_tcp_packet_header(&syn_ack_tcp_packet.tcp, sizeof(tcp_syn_ack_opts_t), TCP_FLAG_SYN | TCP_FLAG_ACK);
+	init_eth_packet(&syn_ack_ipv4_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ipv4_packet(&syn_ack_ipv4_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_syn_ack_opts_t), IP_PROTO_TCP);
+	init_tcp_packet_header(&syn_ack_ipv4_tcp_packet.tcp, sizeof(tcp_syn_ack_opts_t), TCP_FLAG_SYN | TCP_FLAG_ACK);
 
 	/* TODO: negotiate MSS */
-	syn_ack_tcp_packet.opts = (tcp_syn_ack_opts_t) {
+	syn_ack_ipv4_tcp_packet.opts = (tcp_syn_ack_opts_t) {
 		.mss       = { .code = TCP_OPT_MSS_CODE,       .len = TCP_OPT_MSS_LEN },
 		.sack_perm = { .code = TCP_OPT_SACK_PERM_CODE, .len = TCP_OPT_SACK_PERM_LEN},
 		.win_scale = { .code = TCP_OPT_WIN_SCALE_CODE, .len = TCP_OPT_WIN_SCALE_LEN},
@@ -202,11 +202,11 @@ init_syn_ack_tcp_packet(void)
 void
 init_ack_tcp_packet(void)
 {
-	init_eth_packet(&ack_tcp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t), IP_PROTO_TCP);
-	init_tcp_packet_header(&ack_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK);
+	init_eth_packet(&ack_ipv4_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ipv4_packet(&ack_ipv4_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_ack_opts_t), IP_PROTO_TCP);
+	init_tcp_packet_header(&ack_ipv4_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK);
 
-	ack_tcp_packet.opts = (tcp_ack_opts_t) {
+	ack_ipv4_tcp_packet.opts = (tcp_ack_opts_t) {
 		.ts  = { .code = TCP_OPT_TS_CODE, .len = TCP_OPT_TS_LEN},
 		.nop = TCP_OPT_NOP_CODE,
 		.eol = TCP_OPT_EOL_CODE
@@ -216,11 +216,11 @@ init_ack_tcp_packet(void)
 void
 init_data_tcp_packet(void)
 {
-	init_eth_packet(&data_tcp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&data_tcp_packet.ip, 0, IP_PROTO_TCP);
-	init_tcp_packet_header(&data_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_PSH);
+	init_eth_packet(&data_ipv4_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ipv4_packet(&data_ipv4_tcp_packet.ip, 0, IP_PROTO_TCP);
+	init_tcp_packet_header(&data_ipv4_tcp_packet.tcp, sizeof(tcp_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_PSH);
 
-	data_tcp_packet.opts = (tcp_data_opts_t) {
+	data_ipv4_tcp_packet.opts = (tcp_data_opts_t) {
 		.ts  = { .code = TCP_OPT_TS_CODE, .len = TCP_OPT_TS_LEN},
 		.nop = TCP_OPT_NOP_CODE,
 		.eol = TCP_OPT_EOL_CODE
@@ -230,11 +230,11 @@ init_data_tcp_packet(void)
 void
 init_fin_ack_tcp_packet(void)
 {
-	init_eth_packet(&fin_ack_tcp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&fin_ack_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t), IP_PROTO_TCP);
-	init_tcp_packet_header(&fin_ack_tcp_packet.tcp, sizeof(tcp_fin_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_FIN);
+	init_eth_packet(&fin_ack_ipv4_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ipv4_packet(&fin_ack_ipv4_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_fin_ack_opts_t), IP_PROTO_TCP);
+	init_tcp_packet_header(&fin_ack_ipv4_tcp_packet.tcp, sizeof(tcp_fin_ack_opts_t), TCP_FLAG_ACK | TCP_FLAG_FIN);
 
-	fin_ack_tcp_packet.opts = (tcp_fin_ack_opts_t) {
+	fin_ack_ipv4_tcp_packet.opts = (tcp_fin_ack_opts_t) {
 		.ts  = { .code = TCP_OPT_TS_CODE, .len = TCP_OPT_TS_LEN},
 		.nop = TCP_OPT_NOP_CODE,
 		.eol = TCP_OPT_EOL_CODE
@@ -244,9 +244,9 @@ init_fin_ack_tcp_packet(void)
 void
 init_rst_tcp_packet(void)
 {
-	init_eth_packet(&rst_tcp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&rst_tcp_packet.ip, sizeof(tcp_hdr_t), IP_PROTO_TCP);
-	init_tcp_packet_header(&rst_tcp_packet.tcp, 0, TCP_FLAG_ACK | TCP_FLAG_RST);
+	init_eth_packet(&rst_ipv4_tcp_packet.eth, ETH_TYPE_IPV4);
+	init_ipv4_packet(&rst_ipv4_tcp_packet.ip, sizeof(tcp_hdr_t), IP_PROTO_TCP);
+	init_tcp_packet_header(&rst_ipv4_tcp_packet.tcp, 0, TCP_FLAG_ACK | TCP_FLAG_RST);
 }
 
 bool
@@ -366,19 +366,19 @@ send_tcp_syn_ack(void)
 {
 	log_debug1("send tcp SYN+ACK packet");
 
-	setup_eth_hdr(&syn_ack_tcp_packet.eth);
-	setup_ip_hdr(&syn_ack_tcp_packet.ip, 0);
-	setup_tcp_hdr(&syn_ack_tcp_packet.tcp);
+	setup_eth_hdr(&syn_ack_ipv4_tcp_packet.eth);
+	setup_ipv4_hdr(&syn_ack_ipv4_tcp_packet.ip, 0);
+	setup_tcp_hdr(&syn_ack_ipv4_tcp_packet.tcp);
 
 	/* XXX */
-	syn_ack_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
-	syn_ack_tcp_packet.opts.ts.ts           = htonl(cur_ms_ts());
-	syn_ack_tcp_packet.opts.ts.echo         = cur_conn->client_opts.ts;
-	syn_ack_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
+	syn_ack_ipv4_tcp_packet.opts.mss.size        = HTONS(TCP_MSS);
+	syn_ack_ipv4_tcp_packet.opts.ts.ts           = htonl(cur_ms_ts());
+	syn_ack_ipv4_tcp_packet.opts.ts.echo         = cur_conn->client_opts.ts;
+	syn_ack_ipv4_tcp_packet.opts.win_scale.shift = TCP_WIN_SCALE;
 
 	tcp_syn_ack_checksum();
 
-	nm_send_packet(&syn_ack_tcp_packet, sizeof(syn_ack_tcp_packet));
+	nm_send_packet(&syn_ack_ipv4_tcp_packet, sizeof(syn_ack_ipv4_tcp_packet));
 }
 
 static inline
@@ -387,16 +387,16 @@ send_tcp_ack(void)
 {
 	log_debug1("send tcp ACK packet");
 
-	setup_eth_hdr(&ack_tcp_packet.eth);
-	setup_ip_hdr(&ack_tcp_packet.ip, 0);
-	setup_tcp_hdr(&ack_tcp_packet.tcp);
+	setup_eth_hdr(&ack_ipv4_tcp_packet.eth);
+	setup_ipv4_hdr(&ack_ipv4_tcp_packet.ip, 0);
+	setup_tcp_hdr(&ack_ipv4_tcp_packet.tcp);
 
-	ack_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	ack_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
+	ack_ipv4_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
+	ack_ipv4_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 	tcp_ack_checksum();
 
-	nm_send_packet(&ack_tcp_packet, sizeof(ack_tcp_packet));
+	nm_send_packet(&ack_ipv4_tcp_packet, sizeof(ack_ipv4_tcp_packet));
 }
 
 static inline
@@ -405,12 +405,12 @@ send_tcp_data(char *packet_buf, char *data, uint16_t len)
 {
 	log_debug1("send tcp data packet");
 
-	setup_eth_hdr(&data_tcp_packet.eth);
-	setup_ip_hdr(&data_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
-	setup_tcp_hdr(&data_tcp_packet.tcp);
+	setup_eth_hdr(&data_ipv4_tcp_packet.eth);
+	setup_ipv4_hdr(&data_ipv4_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
+	setup_tcp_hdr(&data_ipv4_tcp_packet.tcp);
 
-	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	data_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
+	data_ipv4_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
+	data_ipv4_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 #ifdef DEBUG_TCP_RETX
 	static int i = 1;
@@ -420,7 +420,7 @@ send_tcp_data(char *packet_buf, char *data, uint16_t len)
 
 	track_unackd_segment();
 
-	memcpy(packet_buf, &data_tcp_packet, sizeof(data_tcp_packet));
+	memcpy(packet_buf, &data_ipv4_tcp_packet, sizeof(data_ipv4_tcp_packet));
 }
 
 static inline
@@ -429,17 +429,17 @@ send_tcp_data_retx(char *packet_buf, char *data, uint16_t len, uint32_t seq)
 {
 	log_debug1("send (retx) tcp data packet");
 
-	setup_eth_hdr(&data_tcp_packet.eth);
-	setup_ip_hdr(&data_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
-	setup_tcp_hdr(&data_tcp_packet.tcp);
+	setup_eth_hdr(&data_ipv4_tcp_packet.eth);
+	setup_ipv4_hdr(&data_ipv4_tcp_packet.ip, sizeof(tcp_hdr_t) + sizeof(tcp_data_opts_t) + len);
+	setup_tcp_hdr(&data_ipv4_tcp_packet.tcp);
 
-	data_tcp_packet.tcp.seq      = htonl(seq);
-	data_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	data_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
+	data_ipv4_tcp_packet.tcp.seq      = htonl(seq);
+	data_ipv4_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
+	data_ipv4_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 	tcp_data_checksum(data, len);
 
-	memcpy(packet_buf, &data_tcp_packet, sizeof(data_tcp_packet));
+	memcpy(packet_buf, &data_ipv4_tcp_packet, sizeof(data_ipv4_tcp_packet));
 }
 
 static inline
@@ -448,16 +448,16 @@ send_tcp_fin_ack(void)
 {
 	log_debug1("send tcp FIN+ACK packet");
 
-	setup_eth_hdr(&fin_ack_tcp_packet.eth);
-	setup_ip_hdr(&fin_ack_tcp_packet.ip, 0);
-	setup_tcp_hdr(&fin_ack_tcp_packet.tcp);
+	setup_eth_hdr(&fin_ack_ipv4_tcp_packet.eth);
+	setup_ipv4_hdr(&fin_ack_ipv4_tcp_packet.ip, 0);
+	setup_tcp_hdr(&fin_ack_ipv4_tcp_packet.tcp);
 
-	fin_ack_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
-	fin_ack_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
+	fin_ack_ipv4_tcp_packet.opts.ts.ts   = htonl(cur_ms_ts());
+	fin_ack_ipv4_tcp_packet.opts.ts.echo = cur_conn->client_opts.ts;
 
 	tcp_fin_ack_checksum();
 
-	nm_send_packet(&fin_ack_tcp_packet, sizeof(fin_ack_tcp_packet));
+	nm_send_packet(&fin_ack_ipv4_tcp_packet, sizeof(fin_ack_ipv4_tcp_packet));
 }
 
 static inline
@@ -466,15 +466,15 @@ send_tcp_rst(void)
 {
 	log_debug1("send tcp RST packet");
 
-	setup_eth_hdr(&rst_tcp_packet.eth);
-	setup_ip_hdr(&rst_tcp_packet.ip, 0);
-	setup_tcp_hdr(&rst_tcp_packet.tcp);
+	setup_eth_hdr(&rst_ipv4_tcp_packet.eth);
+	setup_ipv4_hdr(&rst_ipv4_tcp_packet.ip, 0);
+	setup_tcp_hdr(&rst_ipv4_tcp_packet.tcp);
 
-	rst_tcp_packet.tcp.src_port = cur_pkt->tcp_hdr->dst_port;
+	rst_ipv4_tcp_packet.tcp.src_port = cur_pkt->tcp_hdr->dst_port;
 
 	tcp_rst_checksum();
 
-	nm_send_packet(&rst_tcp_packet, sizeof(rst_tcp_packet));
+	nm_send_packet(&rst_ipv4_tcp_packet, sizeof(rst_ipv4_tcp_packet));
 }
 
 static inline
@@ -885,7 +885,7 @@ process_tcp(void)
 {
 	tcp_conn_t *conn;
 
-	cur_pkt->tcp_hdr   = (tcp_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
+	cur_pkt->tcp_hdr   = (tcp_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ipv4_hdr_t));
 	cur_sock->src_port = cur_pkt->tcp_hdr->src_port;
 	conn               = get_tcp_conn();
 
@@ -899,7 +899,7 @@ process_tcp(void)
 
 static
 uint16_t
-tcp_checksum(ip_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len, void *data, uint32_t data_len)
+tcp_checksum(ipv4_hdr_t *ip_hdr, tcp_hdr_t *tcp_hdr, void *opts, uint32_t opts_len, void *data, uint32_t data_len)
 {
 	uint64_t sum = 0;
 	tcp_pseudo_header_t pseudo_hdr;
@@ -942,11 +942,11 @@ tcp_conn_send_data_http_hdr(tcp_send_data_ctx_t *ctx)
 		nm_get_tx_buff(&tx_desc);
 
 		payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc.buf);
-		payload_len = MIN(ETH_MTU - sizeof(data_tcp_packet), res->header_len - res->header_pos);
+		payload_len = MIN(ETH_MTU - sizeof(data_ipv4_tcp_packet), res->header_len - res->header_pos);
 
 		memcpy(payload_buf, res->header_buf + res->header_pos, payload_len);
 
-		*tx_desc.len     = sizeof(data_tcp_packet) + payload_len;
+		*tx_desc.len     = sizeof(data_ipv4_tcp_packet) + payload_len;
 		res->header_pos += payload_len;
 
 		/*
@@ -1014,9 +1014,9 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 			tx_desc[iovcnt].len = ctx->http_hdr_last_tx_desc.len;
 
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf) + payload_offset;
-			payload_len = MIN(ETH_MTU - (sizeof(data_tcp_packet) + payload_offset), res->file_len - res->file_pos);
+			payload_len = MIN(ETH_MTU - (sizeof(data_ipv4_tcp_packet) + payload_offset), res->file_len - res->file_pos);
 
-			*tx_desc[iovcnt].len  = sizeof(data_tcp_packet) + payload_offset + payload_len;
+			*tx_desc[iovcnt].len  = sizeof(data_ipv4_tcp_packet) + payload_offset + payload_len;
 			cur_conn->eff_window -= payload_offset + payload_len;
 
 			payload_offset = 0;
@@ -1024,9 +1024,9 @@ tcp_conn_send_data_http_file(tcp_send_data_ctx_t *ctx)
 			nm_get_tx_buff(&tx_desc[iovcnt]);
 
 			payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc[iovcnt].buf);
-			payload_len = MIN(ETH_MTU - sizeof(data_tcp_packet), res->file_len - res->file_pos);
+			payload_len = MIN(ETH_MTU - sizeof(data_ipv4_tcp_packet), res->file_len - res->file_pos);
 
-			*tx_desc[iovcnt].len  = sizeof(data_tcp_packet) + payload_len;
+			*tx_desc[iovcnt].len  = sizeof(data_ipv4_tcp_packet) + payload_len;
 			cur_conn->eff_window -= payload_len;
 		}
 
@@ -1137,40 +1137,40 @@ static inline
 void
 tcp_syn_ack_checksum(void)
 {
-	syn_ack_tcp_packet.tcp.checksum =
-		tcp_checksum(&syn_ack_tcp_packet.ip, &syn_ack_tcp_packet.tcp, &syn_ack_tcp_packet.opts, sizeof(tcp_syn_ack_opts_t), NULL, 0);
+	syn_ack_ipv4_tcp_packet.tcp.checksum =
+		tcp_checksum(&syn_ack_ipv4_tcp_packet.ip, &syn_ack_ipv4_tcp_packet.tcp, &syn_ack_ipv4_tcp_packet.opts, sizeof(tcp_syn_ack_opts_t), NULL, 0);
 }
 
 static inline
 void
 tcp_ack_checksum(void)
 {
-	ack_tcp_packet.tcp.checksum =
-		tcp_checksum(&ack_tcp_packet.ip, &ack_tcp_packet.tcp, &ack_tcp_packet.opts, sizeof(tcp_ack_opts_t), NULL, 0);
+	ack_ipv4_tcp_packet.tcp.checksum =
+		tcp_checksum(&ack_ipv4_tcp_packet.ip, &ack_ipv4_tcp_packet.tcp, &ack_ipv4_tcp_packet.opts, sizeof(tcp_ack_opts_t), NULL, 0);
 }
 
 static inline
 void
 tcp_data_checksum(char *data, uint16_t data_len)
 {
-	data_tcp_packet.tcp.checksum =
-		tcp_checksum(&data_tcp_packet.ip, &data_tcp_packet.tcp, &data_tcp_packet.opts, sizeof(tcp_data_opts_t), data, data_len);
+	data_ipv4_tcp_packet.tcp.checksum =
+		tcp_checksum(&data_ipv4_tcp_packet.ip, &data_ipv4_tcp_packet.tcp, &data_ipv4_tcp_packet.opts, sizeof(tcp_data_opts_t), data, data_len);
 }
 
 static inline
 void
 tcp_fin_ack_checksum(void)
 {
-	fin_ack_tcp_packet.tcp.checksum =
-		tcp_checksum(&fin_ack_tcp_packet.ip, &fin_ack_tcp_packet.tcp, &fin_ack_tcp_packet.opts, sizeof(tcp_fin_ack_opts_t), NULL, 0);
+	fin_ack_ipv4_tcp_packet.tcp.checksum =
+		tcp_checksum(&fin_ack_ipv4_tcp_packet.ip, &fin_ack_ipv4_tcp_packet.tcp, &fin_ack_ipv4_tcp_packet.opts, sizeof(tcp_fin_ack_opts_t), NULL, 0);
 }
 
 static inline
 void
 tcp_rst_checksum(void)
 {
-	rst_tcp_packet.tcp.checksum =
-		tcp_checksum(&rst_tcp_packet.ip, &rst_tcp_packet.tcp, NULL, 0, NULL, 0);
+	rst_ipv4_tcp_packet.tcp.checksum =
+		tcp_checksum(&rst_ipv4_tcp_packet.ip, &rst_ipv4_tcp_packet.tcp, NULL, 0, NULL, 0);
 }
 
 void
@@ -1316,7 +1316,7 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 		header_len = 0;
 	}
 
-	if (ETH_MTU - sizeof(data_tcp_packet) - header_len > 0) {
+	if (ETH_MTU - sizeof(data_ipv4_tcp_packet) - header_len > 0) {
 		file_start = start_byte - res->header_len;
 		file_len   = MIN(cur_conn->client_opts.mss - sizeof(tcp_data_opts_t) - header_len, res->file_len - file_start);
 	} else {
@@ -1328,7 +1328,7 @@ tcp_retransm_segment(tcp_unackd_seg_t *seg)
 	payload_buf = TCP_DATA_PACKET_PAYLOAD(tx_desc.buf);
 	payload_len = header_len + file_len;
 
-	*tx_desc.len          = sizeof(data_tcp_packet) + payload_len;
+	*tx_desc.len          = sizeof(data_ipv4_tcp_packet) + payload_len;
 	cur_conn->eff_window -= payload_len;
 
 	memcpy(payload_buf, res->header_buf + header_start, header_len);

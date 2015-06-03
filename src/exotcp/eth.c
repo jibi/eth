@@ -61,7 +61,7 @@ process_eth(void)
 	}
 
 	if (likely(cur_pkt->eth_hdr->mac_type == ETH_TYPE_IPV4)) {
-		process_ip();
+		process_ipv4();
 	} else if (cur_pkt->eth_hdr->mac_type == ETH_TYPE_ARP) {
 		process_arp();
 	}

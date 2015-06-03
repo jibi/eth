@@ -37,7 +37,7 @@
 
 struct {
 	eth_hdr_t           eth;
-	ip_hdr_t            ip;
+	ipv4_hdr_t          ip;
 	icmp_echo_rpl_hdr_t icmp;
 } preinit_icmp_packet;
 
@@ -60,7 +60,7 @@ void
 init_preinit_icmp_packet(void)
 {
 	init_eth_packet(&preinit_icmp_packet.eth, ETH_TYPE_IPV4);
-	init_ip_packet(&preinit_icmp_packet.ip, 0, IP_PROTO_ICMP);
+	init_ipv4_packet(&preinit_icmp_packet.ip, 0, IP_PROTO_ICMP);
 
 	preinit_icmp_packet.icmp.type = ICMP_TYPE_ECHO_RPL;
 	preinit_icmp_packet.icmp.code = 0;
@@ -83,7 +83,7 @@ process_icmp_echo_request(void)
 	data_len = icmp_echo_req_data_len(cur_pkt);
 
 	setup_eth_hdr(&preinit_icmp_packet.eth);
-	setup_ip_hdr(&preinit_icmp_packet.ip, sizeof(icmp_echo_rpl_hdr_t) + data_len);
+	setup_ipv4_hdr(&preinit_icmp_packet.ip, sizeof(icmp_echo_rpl_hdr_t) + data_len);
 
 	preinit_icmp_packet.icmp.id       = cur_pkt->icmp_echo_req_hdr->id;
 	preinit_icmp_packet.icmp.seq      = cur_pkt->icmp_echo_req_hdr->seq;
@@ -95,7 +95,7 @@ process_icmp_echo_request(void)
 void
 process_icmp(void)
 {
-	cur_pkt->icmp_echo_req_hdr = (icmp_echo_req_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ip_hdr_t));
+	cur_pkt->icmp_echo_req_hdr = (icmp_echo_req_hdr_t *) (cur_pkt->buf + sizeof(eth_hdr_t) + sizeof(ipv4_hdr_t));
 
 	if (cur_pkt->icmp_echo_req_hdr->type == ICMP_TYPE_ECHO_REQ) {
 		process_icmp_echo_request();
