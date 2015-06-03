@@ -58,7 +58,7 @@ init_preinit_arp_packet(void)
 	preinit_arp_packet.arp.opcode         = ARP_OPCODE_REPLY;
 
 	memcpy(preinit_arp_packet.arp.sender_hw_addr, &mac_addr, sizeof(struct ether_addr));
-	memcpy(preinit_arp_packet.arp.sender_proto_addr, &ip_addr, sizeof(struct in_addr));
+	memcpy(preinit_arp_packet.arp.sender_proto_addr, &ipv4_addr, sizeof(struct in_addr));
 }
 
 void

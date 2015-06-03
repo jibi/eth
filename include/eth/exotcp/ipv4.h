@@ -38,6 +38,9 @@ typedef struct ipv4_hdr_s {
 	uint32_t dst_addr;
 } __attribute__ ((packed)) ipv4_hdr_t;
 
+/*
+ * TODO: move to ip.h
+ */
 #define IP_PROTO_ICMP 0x1
 #define IP_PROTO_TCP  0x6
 

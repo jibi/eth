@@ -45,7 +45,7 @@ init_ipv4_packet(ipv4_hdr_t *ip_hdr, uint16_t data_len, uint8_t proto)
 	ip_hdr->ttl         = 64;
 	ip_hdr->proto       = proto;
 
-	memcpy(&ip_hdr->src_addr, &ip_addr, sizeof(struct in_addr));
+	memcpy(&ip_hdr->src_addr, &ipv4_addr, sizeof(struct in_addr));
 }
 
 void
@@ -71,7 +71,7 @@ process_ipv4(void)
 		return;
 	}
 
-	if (unlikely(! is_this_card_ip((struct in_addr *) &cur_pkt->ip_hdr->dst_addr))) {
+	if (unlikely(! is_this_card_ipv4((struct in_addr *) &cur_pkt->ip_hdr->dst_addr))) {
 		log_debug1("this is not the packet you are looking for");
 		return;
 	}
